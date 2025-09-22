@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuMail Decryption Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: #f9fafb;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .container {
+            background: #374151;
+            border-radius: 1rem;
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+        }
+        h1 {
+            color: #8b5cf6;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #d1d5db;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 0.75rem;
+            background: #1f2937;
+            border: 1px solid #4b5563;
+            border-radius: 0.5rem;
+            color: #f9fafb;
+            font-family: inherit;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        button {
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            width: 100%;
+            margin-top: 1rem;
+            transition: all 0.2s ease;
+        }
+        button:hover {
+            background: #7c3aed;
+        }
+        .result {
+            background: #1f2937;
+            border: 1px solid #4b5563;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+        }
+        .error {
+            color: #ef4444;
+        }
+        .success {
+            color: #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔓 QuMail Decryption Tool</h1>
+        
+        <div class="form-group">
+            <label for="encryptedText">Encrypted Message:</label>
+            <textarea id="encryptedText" placeholder="Paste the encrypted message here..."></textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="decryptionKey">Decryption Key:</label>
+            <input type="text" id="decryptionKey" placeholder="Enter the decryption key...">
+        </div>
+        
+        <div class="form-group">
+            <label for="encryptionLevel">Encryption Level:</label>
+            <select id="encryptionLevel">
+                <option value="aes256">AES-256</option>
+                <option value="kyber">Kyber PQC</option>
+                <option value="otp">OTP</option>
+            </select>
+        </div>
+        
+        <button onclick="decryptMessage()">🔓 Decrypt Message</button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        // Simple AES-256 decryption (browser-compatible)
+        async function decryptAES256(encryptedData, key) {
+            try {
+                const data = JSON.parse(encryptedData);
+                // This is a simplified version - in real implementation, you'd use Web Crypto API
+                return "Decryption successful! (This is a demo - real decryption would happen here)";
+            } catch (error) {
+                throw new Error("Invalid encrypted data format");
+            }
+        }
+
+        async function decryptMessage() {
+            const encryptedText = document.getElementById('encryptedText').value;
+            const key = document.getElementById('decryptionKey').value;
+            const level = document.getElementById('encryptionLevel').value;
+            const result = document.getElementById('result');
+            
+            if (!encryptedText || !key) {
+                result.innerHTML = '<span class="error">Please enter both encrypted message and decryption key</span>';
+                result.style.display = 'block';
+                return;
+            }
+            
+            try {
+                let decrypted;
+                switch (level) {
+                    case 'aes256':
+                        decrypted = await decryptAES256(encryptedText, key);
+                        break;
+                    case 'kyber':
+                        decrypted = "Kyber decryption (demo mode)";
+                        break;
+                    case 'otp':
+                        decrypted = "OTP decryption (demo mode)";
+                        break;
+                    default:
+                        throw new Error("Unsupported encryption level");
+                }
+                
+                result.innerHTML = `<span class="success">✅ Decrypted Message:</span>\n\n${decrypted}`;
+                result.style.display = 'block';
+            } catch (error) {
+                result.innerHTML = `<span class="error">❌ Decryption failed: ${error.message}</span>`;
+                result.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuMail - Quantum-Safe Email Client</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Modern Header -->
+        <header class="header">
+            <div class="header-content">
+                <div class="brand">
+                    <div class="brand-icon">Q</div>
+                    <div class="brand-text">
+                        <h1>QuMail</h1>
+                        <span>Quantum-Safe Email</span>
+                    </div>
+                </div>
+                
+                <div class="header-status">
+                    <div class="status-badge qkd-status" id="qkd-status" role="status" aria-live="polite">
+                        <div class="status-dot" aria-hidden="true"></div>
+                        <span>QKD Server</span>
+                    </div>
+                    <div class="status-badge auth-status" id="auth-status" role="status" aria-live="polite">
+                        <div class="status-dot" aria-hidden="true"></div>
+                        <span>Not Connected</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Modern Layout -->
+        <div class="app-layout">
+            <!-- Sleek Sidebar -->
+            <nav class="sidebar" role="navigation" aria-label="Main navigation">
+                <div class="nav-section">
+                    <div class="nav-item active" data-view="inbox" role="button" tabindex="0" aria-label="Inbox">
+                        <span class="nav-label">Inbox</span>
+                        <span class="nav-badge" id="inbox-count" aria-label="Unread emails">0</span>
+                    </div>
+                    <div class="nav-item" data-view="compose" role="button" tabindex="0" aria-label="Compose new email">
+                        <span class="nav-label">Compose</span>
+                    </div>
+                    <div class="nav-item" data-view="sent" role="button" tabindex="0" aria-label="Sent emails">
+                        <span class="nav-label">Sent</span>
+                    </div>
+                    <div class="nav-item" data-view="settings" role="button" tabindex="0" aria-label="Application settings">
+                        <span class="nav-label">Settings</span>
+                    </div>
+                    <div class="nav-item" data-view="demo" role="button" tabindex="0" aria-label="Demo mode">
+                        <span class="nav-label">Demo Mode</span>
+                    </div>
+                </div>
+                
+                <div class="encryption-panel">
+                    <h3>Security Levels</h3>
+                    <div class="security-levels">
+                        <div class="security-item plain">
+                            <div class="security-indicator"></div>
+                            <span>Plain Text</span>
+                        </div>
+                        <div class="security-item aes">
+                            <div class="security-indicator"></div>
+                            <span>AES-256</span>
+                        </div>
+                        <div class="security-item kyber">
+                            <div class="security-indicator"></div>
+                            <span>Kyber PQC</span>
+                        </div>
+                        <div class="security-item otp">
+                            <div class="security-indicator"></div>
+                            <span>OTP Max</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+
+            <!-- Modern Content Area -->
+            <main class="main-content">
+                <!-- Inbox View -->
+                <div class="view inbox-view active" id="inbox-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Inbox</h2>
+                            <span class="subtitle">Your encrypted messages</span>
+                        </div>
+                        <div class="header-actions">
+                            <button class="action-btn secondary" id="refresh-btn">
+                                <span>Refresh</span>
+                            </button>
+                            <button class="action-btn secondary" id="switch-account-btn" style="display: none;">
+                                <span>Change Account</span>
+                            </button>
+                            <button class="action-btn primary" id="auth-btn">
+                                <span>Connect Gmail</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <div class="email-container" id="email-list">
+                            <div class="empty-state">
+                                <div class="empty-icon">📬</div>
+                                <h3>Welcome to QuMail</h3>
+                                <p>Connect your Gmail account to start sending quantum-safe encrypted emails</p>
+                                <button class="empty-action" id="auth-btn-empty">Connect Gmail Account</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Email Detail View -->
+                <div class="view email-detail-view" id="email-detail-view">
+                    <div class="content-header">
+                        <button class="back-btn" id="back-to-inbox">
+                            <span>← Back to Inbox</span>
+                        </button>
+                        <div class="header-title">
+                            <h2 id="email-detail-subject">Email Subject</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <div class="email-detail">
+                            <div class="email-meta">
+                                <div class="meta-row">
+                                    <span class="meta-label">From</span>
+                                    <span class="meta-value" id="email-detail-from-text"></span>
+                                </div>
+                                <div class="meta-row">
+                                    <span class="meta-label">Date</span>
+                                    <span class="meta-value" id="email-detail-date-text"></span>
+                                </div>
+                                <div class="meta-row" id="email-detail-encryption">
+                                    <!-- Encryption info -->
+                                </div>
+                            </div>
+                            <div class="email-content" id="email-detail-body">
+                                <!-- Email body -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Compose View -->
+                <div class="view compose-view" id="compose-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Compose Message</h2>
+                            <span class="subtitle" id="compose-subtitle">Send quantum-safe encrypted email</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <form class="compose-form" id="compose-form">
+                            <div class="form-left">
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>To</label>
+                                        <input type="email" id="compose-to" name="to" required placeholder="Enter recipient email">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Subject</label>
+                                        <input type="text" id="compose-subject" name="subject" required placeholder="Enter email subject">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Security Level</label>
+                                        <select id="encryption-level" name="encryptionLevel" class="security-select">
+                                            <option value="plain">Plain Text - No Encryption</option>
+                                            <option value="aes256" selected>AES-256 - Standard Security</option>
+                                            <option value="kyber">Kyber PQC - Post-Quantum Safe</option>
+                                            <option value="otp">OTP - Maximum Security</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" class="action-btn secondary" id="clear-form">
+                                        <span>Clear</span>
+                                    </button>
+                                    <button type="submit" class="action-btn primary">
+                                        <span>Send Encrypted Email</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-right">
+                                <div class="form-row full">
+                                    <div class="input-group">
+                                        <label>Message</label>
+                                        <textarea id="compose-body" name="body" required placeholder="Type your encrypted message here..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Sent View -->
+                <div class="view sent-view" id="sent-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Sent Messages</h2>
+                            <span class="subtitle">Your outgoing encrypted emails</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <div class="email-container" id="sent-list">
+                            <div class="empty-state">
+                                <div class="empty-icon">📤</div>
+                                <h3>No Sent Messages</h3>
+                                <p>Sent emails will appear here after you send them</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings View -->
+                <div class="view settings-view" id="settings-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Settings</h2>
+                            <span class="subtitle">Configure QuMail preferences</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <div class="settings-panel">
+                            <div class="setting-group">
+                                <h3>Application Mode</h3>
+                                <div class="setting-item">
+                                    <div class="setting-info">
+                                        <span class="setting-title">Demo Mode</span>
+                                        <span class="setting-desc">Use simulated emails for testing</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="demo-mode-toggle">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="setting-group">
+                                <h3>Security Preferences</h3>
+                                <div class="setting-item">
+                                    <div class="setting-info">
+                                        <span class="setting-title">Default Encryption</span>
+                                        <span class="setting-desc">Choose your preferred security level</span>
+                                    </div>
+                                    <select id="default-encryption" class="setting-select">
+                                        <option value="plain">Plain Text</option>
+                                        <option value="aes256" selected>AES-256</option>
+                                        <option value="kyber">Kyber PQC</option>
+                                        <option value="otp">OTP Maximum</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Demo View -->
+                <div class="view demo-view" id="demo-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Demo Mode</h2>
+                            <span class="subtitle">Test QuMail without Gmail setup</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <div class="demo-panel">
+                            <div class="demo-hero">
+                                <div class="demo-icon">🚀</div>
+                                <h3>Experience Quantum-Safe Email</h3>
+                                <p>Try QuMail's advanced encryption features with simulated data</p>
+                            </div>
+                            
+                            <div class="demo-features">
+                                <div class="feature-item">
+                                    <div class="feature-icon">🔐</div>
+                                    <span>Test 4 encryption levels</span>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">📧</div>
+                                    <span>Send & receive demo emails</span>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">⚡</div>
+                                    <span>See encryption in real-time</span>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">🌐</div>
+                                    <span>No Gmail API required</span>
+                                </div>
+                            </div>
+                            
+                            <button class="demo-action" id="enable-demo">
+                                <span>Enable Demo Mode</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modern Loading -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text">Processing...</p>
+        </div>
+    </div>
+
+    <!-- Modern Toast -->
+    <div class="toast-container">
+        <div class="toast" id="toast">
+            <div class="toast-content">
+                <span class="toast-message"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

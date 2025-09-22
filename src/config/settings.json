@@ -1,0 +1,28 @@
+{
+  "encryption": {
+    "defaultLevel": "aes256",
+    "allowPlainText": true,
+    "autoEncrypt": false
+  },
+  "email": {
+    "autoRefresh": true,
+    "refreshInterval": 30000,
+    "maxEmailsToFetch": 50
+  },
+  "qkd": {
+    "serverUrl": "http://localhost:3001",
+    "timeout": 5000,
+    "retryAttempts": 3,
+    "keySize": 256
+  },
+  "ui": {
+    "theme": "light",
+    "notifications": true,
+    "soundEnabled": false
+  },
+  "demo": {
+    "enabled": false,
+    "skipOAuth": false,
+    "fallbackMode": true
+  }
+}

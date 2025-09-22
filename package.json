@@ -1,0 +1,45 @@
+{
+  "name": "qumail",
+  "version": "1.0.0",
+  "description": "Quantum-Safe Email Client with End-to-End Encryption",
+  "main": "src/main.js",
+  "homepage": "https://github.com/yourusername/qumail",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/qumail.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "qkd-server": "node src/qkd_server/qkd_server.js",
+    "test": "node src/tests/test_runner.js",
+    "demo": "npm run qkd-server & npm run start",
+    "lint": "echo 'Linting not configured yet'",
+    "clean": "rm -rf dist/ build/"
+  },
+  "keywords": ["quantum", "email", "encryption", "electron", "security", "post-quantum", "cryptography", "privacy"],
+  "author": {
+    "name": "QuMail Team",
+    "email": "team@qumail.com"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "axios": "^1.5.0",
+    "mailparser": "^3.7.4",
+    "google-auth-library": "^8.9.0",
+    "googleapis": "^126.0.1",
+    "nodemailer": "^6.9.7",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.1",
+    "open": "^8.4.2",
+    "electron-log": "^4.4.8",
+    "dotenv": "^16.3.1",
+    "imap": "^0.8.19"
+  }
+}
