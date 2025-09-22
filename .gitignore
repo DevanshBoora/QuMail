@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.env
+src/config/gmail_tokens.json
+dist/
+build/
+.DS_Store
+Thumbs.db
+*.exe
