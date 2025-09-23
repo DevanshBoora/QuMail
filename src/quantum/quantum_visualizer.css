@@ -1,0 +1,382 @@
+/* Quantum Visualizer Styles */
+.quantum-visualizer {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    border-radius: 16px;
+    padding: 0;
+    margin: 1rem 0;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+    overflow: hidden;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.quantum-header {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    padding: 1.5rem;
+    color: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.quantum-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.quantum-status {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    backdrop-filter: blur(10px);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10b981;
+    animation: quantumPulse 2s ease-in-out infinite;
+}
+
+@keyframes quantumPulse {
+    0%, 100% { 
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        transform: scale(1);
+    }
+    50% { 
+        box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+        transform: scale(1.1);
+    }
+}
+
+.quantum-canvas-container {
+    position: relative;
+    background: #111827;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 400px;
+}
+
+#quantum-canvas {
+    border-radius: 8px;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.quantum-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.security-level-indicator {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(17, 24, 39, 0.9);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    backdrop-filter: blur(10px);
+}
+
+.level-bar {
+    width: 200px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.level-fill {
+    height: 100%;
+    background: #22c55e;
+    width: 50%;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+}
+
+.level-text {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #e5e7eb;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.key-generation-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(17, 24, 39, 0.95);
+    padding: 2rem;
+    border-radius: 12px;
+    border: 2px solid #8b5cf6;
+    backdrop-filter: blur(15px);
+    text-align: center;
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+}
+
+.generation-progress {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.progress-bar {
+    width: 250px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #8b5cf6, #06d6a0);
+    width: 0%;
+    border-radius: 6px;
+    transition: width 0.1s ease;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.7);
+    position: relative;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    animation: progressShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.generation-text {
+    color: #e5e7eb;
+    font-weight: 600;
+    font-size: 1rem;
+    animation: textPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes textPulse {
+    0% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.quantum-metrics {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(17, 24, 39, 0.9);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.metric-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.metric-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.quantum-controls {
+    background: rgba(17, 24, 39, 0.8);
+    padding: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    border-top: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.quantum-btn {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.quantum-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+.quantum-btn:active {
+    transform: translateY(0);
+}
+
+.quantum-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.quantum-btn.secondary {
+    background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.quantum-btn.secondary:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Quantum particle effects */
+@keyframes quantumFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes quantumGlow {
+    0%, 100% { 
+        box-shadow: 0 0 5px rgba(139, 92, 246, 0.5);
+    }
+    50% { 
+        box-shadow: 0 0 20px rgba(139, 92, 246, 0.8);
+    }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .quantum-visualizer {
+        margin: 0.5rem 0;
+    }
+    
+    .quantum-header {
+        padding: 1rem;
+        flex-direction: column;
+        gap: 1rem;
+        text-align: center;
+    }
+    
+    .quantum-canvas-container {
+        min-height: 300px;
+    }
+    
+    #quantum-canvas {
+        width: 100%;
+        max-width: 600px;
+        height: 300px;
+    }
+    
+    .security-level-indicator,
+    .quantum-metrics {
+        position: relative;
+        margin: 1rem;
+        top: auto;
+        left: auto;
+        right: auto;
+    }
+    
+    .quantum-controls {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .quantum-btn {
+        width: 100%;
+        max-width: 250px;
+        justify-content: center;
+    }
+}
+
+/* Dark mode enhancements */
+@media (prefers-color-scheme: dark) {
+    .quantum-visualizer {
+        border-color: rgba(139, 92, 246, 0.4);
+    }
+    
+    .level-text,
+    .generation-text {
+        color: #f3f4f6;
+    }
+    
+    .metric-label {
+        color: #d1d5db;
+    }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+    .status-dot,
+    .progress-fill::after,
+    .generation-text {
+        animation: none;
+    }
+    
+    .quantum-btn:hover {
+        transform: none;
+    }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+    .quantum-visualizer {
+        border: 2px solid #8b5cf6;
+    }
+    
+    .quantum-btn {
+        border: 1px solid #ffffff;
+    }
+    
+    .level-text,
+    .generation-text,
+    .metric-value {
+        color: #ffffff;
+        font-weight: 700;
+    }
+}

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuMail - Quantum-Safe Email Client</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="../quantum/quantum_visualizer.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -346,56 +347,142 @@
                                 </div>
                             </div>
                         </div>
+                        
+                        <!-- Quantum Visualizer -->
+                        <div id="quantum-visualizer-container"></div>
                     </div>
                 </div>
 
-                <!-- Demo View -->
-                <div class="view demo-view" id="demo-view">
+                <!-- Decrypt View -->
+                <div class="view decrypt-view" id="decrypt-view">
                     <div class="content-header">
                         <div class="header-title">
-                            <h2>Demo Mode</h2>
-                            <span class="subtitle">Test QuMail without Gmail setup</span>
+                            <h2>Decrypt Message</h2>
+                            <span class="subtitle">Decrypt received QuMail encrypted messages</span>
                         </div>
                     </div>
                     
                     <div class="content-body">
-                        <div class="demo-panel">
-                            <div class="demo-hero">
-                                <div class="demo-icon">🚀</div>
-                                <h3>Experience Quantum-Safe Email</h3>
-                                <p>Try QuMail's advanced encryption features with simulated data</p>
+                        <form class="decrypt-form" id="decrypt-form">
+                            <div class="form-left">
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Encrypted Message</label>
+                                        <textarea id="encrypted-text" name="encryptedText" required placeholder="Paste the encrypted message here..."></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Decryption Key</label>
+                                        <input type="text" id="decryption-key" name="key" required placeholder="Enter the decryption key">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Encryption Level</label>
+                                        <select id="decryption-level" name="encryptionLevel" class="security-select">
+                                            <option value="aes256" selected>AES-256 - Standard Security</option>
+                                            <option value="kyber">Kyber PQC - Post-Quantum Safe</option>
+                                            <option value="otp">OTP - Maximum Security</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Key ID (Optional)</label>
+                                        <input type="text" id="key-id" name="keyId" placeholder="Enter key ID if available">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" class="action-btn secondary" id="clear-decrypt-form">
+                                        <span>Clear</span>
+                                    </button>
+                                    <button type="submit" class="action-btn primary">
+                                        <span>🔓 Decrypt Message</span>
+                                    </button>
+                                </div>
                             </div>
                             
-                            <div class="demo-features">
-                                <div class="feature-item">
-                                    <div class="feature-icon">🔐</div>
-                                    <span>Test 4 encryption levels</span>
-                                </div>
-                                <div class="feature-item">
-                                    <div class="feature-icon">📧</div>
-                                    <span>Send & receive demo emails</span>
-                                </div>
-                                <div class="feature-item">
-                                    <div class="feature-icon">⚡</div>
-                                    <span>See encryption in real-time</span>
-                                </div>
-                                <div class="feature-item">
-                                    <div class="feature-icon">🌐</div>
-                                    <span>No Gmail API required</span>
+                            <div class="form-right">
+                                <div class="form-row full">
+                                    <div class="input-group">
+                                        <label>Decrypted Message</label>
+                                        <div class="decrypted-output" id="decrypted-output">
+                                            <div class="output-placeholder">
+                                                <div class="placeholder-icon">🔐</div>
+                                                <p>Decrypted message will appear here</p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <button class="demo-action" id="enable-demo">
-                                <span>Enable Demo Mode</span>
-                            </button>
-                        </div>
+                        </form>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
 
-    <!-- Modern Loading -->
+                <!-- Compose View -->
+                <div class="view compose-view" id="compose-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Compose Message</h2>
+                            <span class="subtitle" id="compose-subtitle">Send quantum-safe encrypted email</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <form class="compose-form" id="compose-form">
+                            <div class="form-left">
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>To</label>
+                                        <input type="email" id="compose-to" name="to" required placeholder="Enter recipient email">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Subject</label>
+                                        <input type="text" id="compose-subject" name="subject" required placeholder="Enter email subject">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Security Level</label>
+                                        <select id="encryption-level" name="encryptionLevel" class="security-select">
+                                            <option value="plain">Plain Text - No Encryption</option>
+                                            <option value="aes256" selected>AES-256 - Standard Security</option>
+                                            <option value="kyber">Kyber PQC - Post-Quantum Safe</option>
+                                            <option value="otp">OTP - Maximum Security</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" class="action-btn secondary" id="clear-form">
+                                        <span>Clear</span>
+                                    </button>
+                                    <button type="submit" class="action-btn primary">
+                                        <span>Send Encrypted Email</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-right">
+                                <div class="form-row full">
+                                    <div class="input-group">
+                                        <label>Message</label>
+                                        <textarea id="compose-body" name="body" required placeholder="Type your encrypted message here..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
     <div class="loading-overlay" id="loading-overlay">
         <div class="loading-content">
             <div class="loading-spinner"></div>
@@ -412,6 +499,7 @@
         </div>
     </div>
 
+    <script src="../quantum/quantum_visualizer.js"></script>
     <script src="renderer.js"></script>
 </body>
 </html>

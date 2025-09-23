@@ -2,12 +2,12 @@ const { ipcRenderer } = require('electron');
 
 class QuMailRenderer {
     constructor() {
+        this.currentEmail = null;
         this.currentView = 'inbox';
-        this.emails = [];
         this.sentEmails = [];
-        this.selectedEmail = null;
         this.isAuthenticated = false;
-        this.qkdStatus = false;
+        this.userEmail = '';
+        this.quantumVisualizer = null;
         
         this.init();
     }
@@ -142,6 +142,8 @@ class QuMailRenderer {
             this.fetchEmails();
         } else if (viewName === 'sent') {
             this.loadSentEmails();
+        } else if (viewName === 'settings') {
+            this.initializeQuantumVisualizer();
         }
     }
 
@@ -905,7 +907,12 @@ class QuMailRenderer {
             return;
         }
 
-        this.showLoading('Sending email...');
+        this.showLoading('Sending encrypted email...');
+        
+        // Trigger quantum key generation visualization if encrypted
+        if (emailData.encryptionLevel !== 'plain') {
+            this.triggerQuantumKeyGeneration();
+        }
         
         try {
             const result = await ipcRenderer.invoke('send-email', emailData);
@@ -1103,6 +1110,45 @@ class QuMailRenderer {
             this.showToast('❌ Failed to enable demo mode', 'error');
         } finally {
             this.hideLoading();
+        }
+    }
+
+    initializeQuantumVisualizer() {
+        if (!this.quantumVisualizer) {
+            try {
+                this.quantumVisualizer = new QuantumVisualizer('quantum-visualizer-container');
+                console.log('[Renderer] Quantum Visualizer initialized');
+                
+                // Set initial security level based on current settings
+                const defaultEncryption = document.getElementById('default-encryption').value;
+                const securityLevel = this.mapEncryptionToSecurityLevel(defaultEncryption);
+                this.quantumVisualizer.setSecurityLevel(securityLevel);
+                
+            } catch (error) {
+                console.error('[Renderer] Failed to initialize Quantum Visualizer:', error);
+            }
+        }
+    }
+
+    mapEncryptionToSecurityLevel(encryption) {
+        const mapping = {
+            'plain': 'low',
+            'aes256': 'medium',
+            'kyber': 'high',
+            'otp': 'maximum'
+        };
+        return mapping[encryption] || 'medium';
+    }
+
+    triggerQuantumKeyGeneration() {
+        if (this.quantumVisualizer) {
+            this.quantumVisualizer.triggerKeyGeneration();
+        }
+    }
+
+    updateQuantumVisualizerSecurity(level) {
+        if (this.quantumVisualizer) {
+            this.quantumVisualizer.setSecurityLevel(level);
         }
     }
 
