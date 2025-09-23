@@ -1700,6 +1700,10 @@ input:checked + .toggle-slider:before {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.security-select option {
+    background: #181f2a;
+    color: #fff;
+}
 
 .share-instructions {
     margin-top: 1.5rem;
