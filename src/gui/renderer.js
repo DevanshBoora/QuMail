@@ -358,14 +358,14 @@ class QuMailRenderer {
                  data-email-index="${index}" 
                  role="button" 
                  tabindex="0"
-                 aria-label="Email from ${this.escapeHtml(email.from)}: ${this.escapeHtml(email.subject)}"
+                 aria-label="Email from ${this.escapeHtml(email.from)}: ${this.escapeHtml(this.formatEmailSubject(email.subject))}"
                  onclick="window.quMailRenderer.openEmail(${index})"
                  onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();window.quMailRenderer.openEmail(${index})}">
                 <div class="email-header">
                     <span class="email-from">${this.escapeHtml(email.from)}</span>
                     <span class="email-date">${this.formatDate(email.date)}</span>
                 </div>
-                <div class="email-subject">${this.escapeHtml(email.subject)}</div>
+                <div class="email-subject">${this.escapeHtml(this.formatEmailSubject(email.subject))}</div>
                 <div class="email-snippet">${this.escapeHtml(email.snippet || email.body.substring(0, 150) + '...')}</div>
                 ${email.encrypted ? `<span class="encryption-badge ${email.encryptionLevel}" aria-label="Encrypted with ${email.encryptionLevel}">
                     🔒 ${email.encryptionLevel.toUpperCase()} Encrypted
@@ -381,7 +381,7 @@ class QuMailRenderer {
         this.selectedEmail = email;
         
         // Populate email detail view
-        document.getElementById('email-detail-subject').textContent = email.subject;
+        document.getElementById('email-detail-subject').textContent = this.formatEmailSubject(email.subject);
         document.getElementById('email-detail-from-text').textContent = email.from;
         document.getElementById('email-detail-date-text').textContent = this.formatFullDate(email.date);
         document.getElementById('email-detail-body').innerHTML = this.formatEmailBody(email.body);
@@ -403,8 +403,119 @@ class QuMailRenderer {
     }
 
     formatEmailBody(body) {
-        // Convert line breaks to HTML and escape HTML
+        // Check if this is a QuMail encrypted message
+        if (this.isQuMailEncrypted(body)) {
+            return this.formatEncryptedContent(body);
+        }
+        
+        // Check if body contains HTML
+        if (body.includes('<') && body.includes('>')) {
+            // Clean and sanitize HTML content
+            return this.sanitizeHtml(body);
+        }
+        
+        // Plain text - convert line breaks to HTML and escape
         return this.escapeHtml(body).replace(/\n/g, '<br>');
+    }
+
+    isQuMailEncrypted(body) {
+        return body.includes('"algorithm"') && 
+               (body.includes('"data"') || body.includes('"entropy"')) &&
+               body.includes('"timestamp"');
+    }
+
+    formatEncryptedContent(body) {
+        try {
+            // Extract the JSON encryption data
+            let encryptionData = null;
+            let algorithm = 'Unknown';
+            
+            // Try to parse JSON directly
+            if (body.trim().startsWith('{')) {
+                encryptionData = JSON.parse(body.trim());
+            } else {
+                // Extract JSON from mixed content
+                const jsonMatch = body.match(/\{[^}]*"algorithm"[^}]*\}/);
+                if (jsonMatch) {
+                    encryptionData = JSON.parse(jsonMatch[0]);
+                }
+            }
+            
+            if (encryptionData && encryptionData.algorithm) {
+                algorithm = encryptionData.algorithm.toUpperCase();
+            }
+            
+            // Create formatted display
+            return `
+                <div class="encrypted-email-banner">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">🔒</span>
+                        <span class="encryption-title">Quantum-Safe Encrypted (${algorithm}) - QuMail</span>
+                    </div>
+                </div>
+                <div class="encrypted-content-wrapper">
+                    <div class="encryption-data">
+                        <pre class="encryption-json">${this.escapeHtml(JSON.stringify(encryptionData, null, 2))}</pre>
+                    </div>
+                    <div class="encryption-footer">
+                        <p>This message was encrypted using QuMail quantum-safe encryption technology.</p>
+                        <p>Use the <strong>Decrypt</strong> tab to decrypt this message with the appropriate key.</p>
+                    </div>
+                </div>
+            `;
+        } catch (error) {
+            // Fallback for malformed encrypted content
+            return `
+                <div class="encrypted-email-banner">
+                    <div class="encryption-header">
+                        <span class="encryption-icon">🔒</span>
+                        <span class="encryption-title">Quantum-Safe Encrypted - QuMail</span>
+                    </div>
+                </div>
+                <div class="encrypted-content-wrapper">
+                    <div class="encryption-data">
+                        <pre class="encryption-raw">${this.escapeHtml(body)}</pre>
+                    </div>
+                    <div class="encryption-footer">
+                        <p>This message was encrypted using QuMail quantum-safe encryption technology.</p>
+                        <p>Use the <strong>Decrypt</strong> tab to decrypt this message with the appropriate key.</p>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    sanitizeHtml(html) {
+        // Basic HTML sanitization - remove script tags and dangerous attributes
+        return html
+            .replace(/<script[^>]*>.*?<\/script>/gi, '')
+            .replace(/<iframe[^>]*>.*?<\/iframe>/gi, '')
+            .replace(/on\w+\s*=\s*"[^"]*"/gi, '')
+            .replace(/on\w+\s*=\s*'[^']*'/gi, '')
+            .replace(/javascript:/gi, '');
+    }
+
+    formatEmailSubject(subject) {
+        // Clean up encrypted email subjects
+        if (subject.includes('[QuMail-Encrypted]')) {
+            // Remove the prefix and any JSON-like content from the subject
+            let cleanSubject = subject.replace('[QuMail-Encrypted]', '').trim();
+            
+            // If the subject contains JSON-like data, extract just the readable part
+            if (cleanSubject.includes('{"algorithm"')) {
+                // Try to extract any readable text before the JSON
+                const jsonStart = cleanSubject.indexOf('{"algorithm"');
+                if (jsonStart > 0) {
+                    cleanSubject = cleanSubject.substring(0, jsonStart).trim();
+                } else {
+                    cleanSubject = 'Encrypted Message';
+                }
+            }
+            
+            return cleanSubject || 'Encrypted Message';
+        }
+        
+        return subject;
     }
 
     formatFullDate(date) {
