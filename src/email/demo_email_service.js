@@ -88,10 +88,17 @@ class DemoEmailService {
     if (!this.authenticated) {
       await this.authenticate();
     }
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-    console.log('[Demo Service] Returning', this.demoEmails.length, 'emails');
+    
     return this.demoEmails.slice(0, maxResults);
+  }
+
+  async fetchFullEmail(emailId) {
+    console.log('[Demo Service] Fetching full email:', emailId);
+    const email = this.demoEmails.find(e => e.id === emailId);
+    if (!email) {
+      throw new Error('Email not found');
+    }
+    return email;
   }
 
   async sendEmail(emailData) {

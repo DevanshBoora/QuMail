@@ -12,6 +12,8 @@ class EmailService {
     this.credentials = null;
     this.tokens = null;
     this.oauthServer = null;
+    this.emailCache = new Map();
+    this.cacheExpiry = 5 * 60 * 1000; // 5 minutes
     
     this.scopes = [
       'https://www.googleapis.com/auth/gmail.readonly',
@@ -204,20 +206,26 @@ class EmailService {
     }
   }
 
-  async fetchEmails(maxResults = 10) {
+  async fetchEmails(maxResults = 10, useCache = true) {
     try {
       if (!this.gmail) {
         throw new Error('Gmail API not initialized. Please authenticate first.');
       }
 
-      // Try to refresh token if needed
-      try {
-        await this.oauth2Client.getAccessToken();
-      } catch (tokenError) {
-        console.log('[EmailService] Token refresh failed, re-authenticating...');
-        throw new Error('Authentication expired. Please reconnect your Gmail account.');
+      // Check cache first
+      const cacheKey = `emails_${maxResults}`;
+      if (useCache && this.emailCache.has(cacheKey)) {
+        const cached = this.emailCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < this.cacheExpiry) {
+          console.log(`[EmailService] Returning ${cached.emails.length} cached emails`);
+          return cached.emails;
+        }
       }
 
+      console.log(`[EmailService] Fetching ${maxResults} emails...`);
+      const startTime = Date.now();
+
+      // Get message list first (fast)
       const response = await this.gmail.users.messages.list({
         userId: 'me',
         maxResults: maxResults,
@@ -225,22 +233,52 @@ class EmailService {
       });
 
       const messages = response.data.messages || [];
-      const emails = [];
-
-      for (const message of messages) {
-        try {
-          const messageDetail = await this.gmail.users.messages.get({
-            userId: 'me',
-            id: message.id,
-            format: 'full'
-          });
-
-          const email = this.parseGmailMessage(messageDetail.data);
-          emails.push(email);
-        } catch (error) {
-          console.error(`Error fetching message ${message.id}:`, error);
-        }
+      if (messages.length === 0) {
+        console.log('[EmailService] No messages found');
+        return [];
       }
+
+      console.log(`[EmailService] Found ${messages.length} messages, fetching details...`);
+
+      // Batch requests for better performance (Gmail API allows up to 100 batch requests)
+      const batchSize = Math.min(10, messages.length);
+      const batches = [];
+      
+      for (let i = 0; i < messages.length; i += batchSize) {
+        batches.push(messages.slice(i, i + batchSize));
+      }
+
+      const emails = [];
+      
+      for (const batch of batches) {
+        const batchPromises = batch.map(async (message) => {
+          try {
+            const messageDetail = await this.gmail.users.messages.get({
+              userId: 'me',
+              id: message.id,
+              format: 'metadata',
+              metadataHeaders: ['From', 'To', 'Subject', 'Date', 'X-QuMail-Encryption']
+            });
+
+            return this.parseGmailMessage(messageDetail.data, message.id);
+          } catch (error) {
+            console.error(`Error fetching message ${message.id}:`, error);
+            return null;
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        emails.push(...batchResults.filter(email => email !== null));
+      }
+
+      const endTime = Date.now();
+      console.log(`[EmailService] Fetched ${emails.length} emails in ${endTime - startTime}ms`);
+
+      // Cache the results
+      this.emailCache.set(cacheKey, {
+        emails: emails,
+        timestamp: Date.now()
+      });
 
       return emails;
     } catch (error) {
@@ -249,23 +287,46 @@ class EmailService {
     }
   }
 
-  parseGmailMessage(messageData) {
-    const headers = messageData.payload.headers;
+  async fetchFullEmail(emailId) {
+    try {
+      if (!this.gmail) {
+        throw new Error('Gmail API not initialized. Please authenticate first.');
+      }
+
+      console.log(`[EmailService] Fetching full email content for: ${emailId}`);
+
+      const messageDetail = await this.gmail.users.messages.get({
+        userId: 'me',
+        id: emailId,
+        format: 'full'
+      });
+
+      return this.parseGmailMessage(messageDetail.data, emailId);
+    } catch (error) {
+      console.error(`Error fetching full email ${emailId}:`, error);
+      throw new Error(`Failed to fetch full email: ${error.message}`);
+    }
+  }
+
+  parseGmailMessage(messageData, messageId = null) {
+    const headers = messageData.payload?.headers || [];
     const getHeader = (name) => {
       const header = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
       return header ? header.value : '';
     };
 
-    let body = '';
+    // For metadata format, we don't have body content - use snippet instead
+    let body = messageData.snippet || '';
     let attachments = [];
 
-    if (messageData.payload.parts) {
+    // Only parse body if we have full format
+    if (messageData.payload?.parts) {
       messageData.payload.parts.forEach(part => {
         if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
-          if (part.body.data) {
+          if (part.body?.data) {
             body += Buffer.from(part.body.data, 'base64').toString('utf8');
           }
-        } else if (part.filename && part.body.attachmentId) {
+        } else if (part.filename && part.body?.attachmentId) {
           attachments.push({
             filename: part.filename,
             mimeType: part.mimeType,
@@ -274,7 +335,7 @@ class EmailService {
           });
         }
       });
-    } else if (messageData.payload.body.data) {
+    } else if (messageData.payload?.body?.data) {
       body = Buffer.from(messageData.payload.body.data, 'base64').toString('utf8');
     }
 
@@ -284,7 +345,7 @@ class EmailService {
 
     try {
       const subject = getHeader('Subject');
-      if (subject.includes('[QuMail-Encrypted]') || body.includes('"algorithm"')) {
+      if (subject.includes('[QuMail-Encrypted]')) {
         encrypted = true;
         const encryptionHeader = getHeader('X-QuMail-Encryption');
         if (encryptionHeader) {
@@ -298,7 +359,7 @@ class EmailService {
     }
 
     return {
-      id: messageData.id,
+      id: messageId || messageData.id,
       threadId: messageData.threadId,
       from: getHeader('From'),
       to: getHeader('To'),
@@ -310,7 +371,7 @@ class EmailService {
       encryptionLevel: encryptionLevel,
       keyId: keyId,
       labels: messageData.labelIds || [],
-      snippet: messageData.snippet
+      snippet: messageData.snippet || body.substring(0, 150)
     };
   }
 
@@ -332,9 +393,14 @@ class EmailService {
 
       const { to, subject, body, attachments = [], encrypted = false, encryptionLevel = null, keyId = null } = emailData;
 
-      // Create email in RFC 2822 format for Gmail API
-      const emailSubject = encrypted ? `[QuMail-Encrypted] ${subject}` : subject;
-      const htmlBody = this.generateHtmlBody(body, encrypted, encryptionLevel);
+      // Create clean email subject and body
+      // For encrypted emails, don't put the encrypted subject in the email subject line
+      // Instead, use a generic encrypted subject indicator
+      const emailSubject = encrypted ? `[QuMail-Encrypted] Encrypted Message` : subject;
+      
+      // For encrypted emails, pass the original encrypted JSON to generateHtmlBody
+      // Don't format it here - let generateHtmlBody handle the formatting
+      const htmlBody = this.generateHtmlBody(body, encrypted, encryptionLevel, subject);
       
       let emailContent = [
         `To: ${to}`,
@@ -387,11 +453,75 @@ class EmailService {
     }
   }
 
-  generateHtmlBody(textBody, encrypted, encryptionLevel) {
+  isEncryptedJson(body) {
+    try {
+      const parsed = JSON.parse(body);
+      return parsed.algorithm && (parsed.data || parsed.entropy);
+    } catch {
+      return false;
+    }
+  }
+
+  formatEncryptedEmailBody(encryptedJson, encryptionLevel) {
+    try {
+      const data = JSON.parse(encryptedJson);
+      return `Encrypted Message Data:\n\nAlgorithm: ${data.algorithm}\nTimestamp: ${data.timestamp}\n\n[Encrypted payload - Use QuMail to decrypt]`;
+    } catch {
+      return encryptedJson;
+    }
+  }
+
+  generateHtmlBody(textBody, encrypted, encryptionLevel, encryptedSubject = null) {
     const encryptionBadge = encrypted ? 
-      `<div style="background: #4CAF50; color: white; padding: 8px; border-radius: 4px; margin-bottom: 16px; font-size: 12px;">
-        ?? Quantum-Safe Encrypted (${encryptionLevel?.toUpperCase()}) - QuMail
+      `<div style="background: #4CAF50; color: white; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; font-weight: bold;">
+        🔒 Quantum-Safe Encrypted (${encryptionLevel?.toUpperCase()}) - QuMail
       </div>` : '';
+
+    // Check if this is encrypted JSON data
+    if (encrypted && this.isEncryptedJson(textBody)) {
+      try {
+        const data = JSON.parse(textBody);
+        
+        // Create sections for both encrypted subject and encrypted message body
+        const encryptedSubjectSection = encryptedSubject && this.isEncryptedJson(encryptedSubject) ? `
+          <div style="margin-top: 20px; padding: 15px; background: #fff3e0; border-radius: 6px; border: 1px solid #ffb74d;">
+            <h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px;">🏷️ Encrypted Subject:</h4>
+            <div style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #ffb74d; font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all; color: #333;">
+              ${encryptedSubject}
+            </div>
+          </div>
+        ` : '';
+        
+        return `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            ${encryptionBadge}
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #4CAF50;">
+              <h3 style="margin: 0 0 15px 0; color: #333;">Encrypted Message Details</h3>
+              <p><strong>Algorithm:</strong> ${data.algorithm?.toUpperCase()}</p>
+              <p><strong>Timestamp:</strong> ${data.timestamp}</p>
+              <div style="margin-top: 20px; padding: 15px; background: #e8f5e8; border-radius: 6px;">
+                <p style="margin: 0; font-size: 13px; color: #2e7d32;">
+                  <strong>🔐 Encrypted Payload</strong><br>
+                  Copy the encrypted data below to decrypt this message in QuMail.
+                </p>
+              </div>
+            </div>
+            ${encryptedSubjectSection}
+            <div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 6px; border: 1px solid #2196f3;">
+              <h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px;">📝 Encrypted Message Body:</h4>
+              <div style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #2196f3; font-family: 'Courier New', monospace; font-size: 12px; word-break: break-all; color: #333;">
+                ${textBody}
+              </div>
+            </div>
+            <div style="margin-top: 20px; padding: 12px; background: #f5f5f5; border-radius: 4px; font-size: 11px; color: #666;">
+              This message was encrypted using QuMail quantum-safe encryption technology.
+            </div>
+          </div>
+        `;
+      } catch {
+        // Fallback for malformed JSON
+      }
+    }
 
     return `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -432,11 +562,17 @@ class EmailService {
     return !!(this.oauth2Client && this.tokens && this.gmail);
   }
 
+  clearCache() {
+    this.emailCache.clear();
+    console.log('[EmailService] Email cache cleared');
+  }
+
   logout() {
     this.oauth2Client = null;
     this.gmail = null;
     this.transporter = null;
     this.tokens = null;
+    this.clearCache();
 
     const tokenPath = path.join(__dirname, '..', 'config', 'gmail_tokens.json');
     if (fs.existsSync(tokenPath)) {

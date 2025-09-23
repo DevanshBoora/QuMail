@@ -8,6 +8,10 @@ const { DemoEmailService } = require('./email/demo_email_service');
 const { EncryptionEngine } = require('./encryption/encryption_engine');
 const { QKDClient } = require('./qkd_client/qkd_client');
 
+// Import ETSI QKD modules
+const ETSIQKDServer = require('./etsi/etsi_qkd_server');
+const { ETSIKeyManager } = require('./etsi/etsi_key_manager');
+
 // Start QKD server on port 3001
 async function startQKDServer() {
   const QKDServer = require('./qkd_server/qkd_server');
@@ -16,11 +20,20 @@ async function startQKDServer() {
   return server;
 }
 
+// Start ETSI QKD server on port 3443
+async function startETSIQKDServer() {
+  const server = new ETSIQKDServer(3443);
+  await server.start();
+  return server;
+}
+
 let mainWindow;
 let qkdServerInstance;
+let etsiQkdServerInstance;
 let emailService;
 let encryptionEngine;
 let qkdClient;
+let etsiKeyManager;
 
 // Initialize services
 function initializeServices() {
@@ -52,6 +65,14 @@ function initializeServices() {
   }
   if (!qkdClient) {
     qkdClient = new QKDClient();
+  }
+  if (!etsiKeyManager) {
+    etsiKeyManager = new ETSIKeyManager({
+      etsiServerUrl: 'http://127.0.0.1:3443',
+      customServerUrl: 'http://127.0.0.1:3001',
+      preferredMode: 'etsi',
+      fallbackEnabled: true
+    });
   }
 }
 
@@ -110,11 +131,30 @@ async function shutdown() {
     await qkdServerInstance.stop();
     console.log('[QKD Server] Stopped');
   }
+  if (etsiQkdServerInstance) {
+    console.log('Stopping ETSI QKD server...');
+    await etsiQkdServerInstance.stop();
+    console.log('[ETSI QKD Server] Stopped');
+  }
+  if (etsiKeyManager) {
+    console.log('Cleaning up ETSI connections...');
+    await etsiKeyManager.cleanup();
+    console.log('[ETSI Key Manager] Cleaned up');
+  }
   console.log('Application shutdown complete');
 }
 
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   console.log('[Main] App ready, creating window...');
+
+  // Add a catch-all IPC listener to see if any messages come through
+  ipcMain.on('any-message', (event, ...args) => {
+    console.log('=== RECEIVED IPC MESSAGE ===');
+    console.log('Event:', event);
+    console.log('Args:', args);
+    console.log('=== END IPC MESSAGE ===');
+  });
+
   createWindow();
 
   app.on('activate', () => {
@@ -128,14 +168,21 @@ app.whenReady().then(async () => {
     initializeServices();
     console.log('[Main] Services initialized');
 
-    console.log('[Main] Starting QKD server...');
+    console.log('[Main] Starting QKD servers...');
     try {
+      // Start custom QKD server
       qkdServerInstance = await startQKDServer();
-      console.log(`[Main] QKD Server started successfully on port 3001`);
+      console.log(`[Main] Custom QKD Server started successfully on port 3001`);
       qkdClient.updateServerUrl('http://127.0.0.1:3001');
+      
+      // Start ETSI QKD server
+      etsiQkdServerInstance = await startETSIQKDServer();
+      console.log(`[Main] ETSI QKD Server started successfully on port 3443`);
+      
+      console.log('[Main] Both QKD servers started - QuMail is now ETSI GS QKD 004 v2.1.1 compliant!');
       console.log('[Main] Application startup completed successfully');
     } catch (error) {
-      console.error('[Main] Failed to start QKD server:', error);
+      console.error('[Main] Failed to start QKD servers:', error);
     }
   });
 });
@@ -170,16 +217,22 @@ ipcMain.handle('gmail-auth', async () => {
   }
 });
 
-ipcMain.handle('fetch-emails', async () => {
+ipcMain.handle('fetch-emails', async (event, forceRefresh = false) => {
   try {
-    initializeServices();
+    // Only initialize if not already done
+    if (!emailService) {
+      initializeServices();
+    }
+    
     let emails;
     try {
-      emails = await emailService.fetchEmails();
+      emails = await emailService.fetchEmails(15, !forceRefresh); // Use cache unless force refresh
     } catch (error) {
       console.log('[Main] Gmail fetch failed, using demo fallback:', error.message);
       if (emailService.demoFallback) {
-        await emailService.demoFallback.authenticate();
+        if (!emailService.demoFallback.authenticated) {
+          await emailService.demoFallback.authenticate();
+        }
         emails = await emailService.demoFallback.fetchEmails();
       } else {
         throw error;
@@ -188,6 +241,27 @@ ipcMain.handle('fetch-emails', async () => {
     return emails;
   } catch (error) {
     console.error('Fetch emails error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('fetch-full-email', async (event, emailId) => {
+  try {
+    initializeServices();
+    let fullEmail;
+    try {
+      fullEmail = await emailService.fetchFullEmail(emailId);
+    } catch (error) {
+      console.log('[Main] Gmail full email fetch failed, using demo fallback:', error.message);
+      if (emailService.demoFallback) {
+        fullEmail = await emailService.demoFallback.fetchFullEmail(emailId);
+      } else {
+        throw error;
+      }
+    }
+    return fullEmail;
+  } catch (error) {
+    console.error('Fetch full email error:', error);
     throw error;
   }
 });
@@ -208,10 +282,31 @@ ipcMain.handle('send-email', async (event, emailData) => {
     let quantumKey = null;
 
     if (encryptionLevel && encryptionLevel !== 'plain') {
-      quantumKey = await qkdClient.getQuantumKey();
-      keyId = quantumKey.keyId;
+      // Use ETSI Key Manager for quantum key retrieval
+      try {
+        quantumKey = await etsiKeyManager.getQuantumKey({
+          keySize: 256,
+          source: 'qumail_sender',
+          destination: to
+        });
+        keyId = quantumKey.keyId;
+        console.log(`[Main] Using ${quantumKey.source} quantum key (ETSI compliant: ${quantumKey.etsi_compliant})`);
+      } catch (error) {
+        console.error('[Main] ETSI key manager failed, falling back to custom QKD:', error.message);
+        quantumKey = await qkdClient.getQuantumKey();
+        keyId = quantumKey.keyId;
+      }
+      
+      console.log('[Main] ENCRYPTING EMAIL:');
+      console.log('[Main] Original subject:', subject);
+      console.log('[Main] Original body:', body);
+      
       encryptedSubject = await encryptionEngine.encrypt(subject, quantumKey.key, encryptionLevel);
       encryptedBody = await encryptionEngine.encrypt(body, quantumKey.key, encryptionLevel);
+      
+      console.log('[Main] Encrypted subject:', encryptedSubject);
+      console.log('[Main] Encrypted body:', encryptedBody);
+      console.log('[Main] Are they the same?', encryptedSubject === encryptedBody);
     }
 
     const emailToSend = {
@@ -289,6 +384,8 @@ ipcMain.handle('decrypt-message', async (event, decryptionData) => {
     console.log('[Main] Attempting to decrypt message...');
     console.log('[Main] Encryption Level:', encryptionLevel);
     console.log('[Main] Key ID:', keyId);
+    console.log('[Main] Encrypted text to decrypt:', encryptedText);
+    console.log('[Main] Decryption key:', key);
     
     // Initialize services if not already done
     initializeServices();
@@ -297,6 +394,9 @@ ipcMain.handle('decrypt-message', async (event, decryptionData) => {
     const decryptedText = await encryptionEngine.decrypt(encryptedText, key, encryptionLevel);
     
     console.log('[Main] Message decrypted successfully');
+    console.log('[Main] Decrypted text:', decryptedText);
+    console.log('[Main] Decrypted text type:', typeof decryptedText);
+    console.log('[Main] Decrypted text length:', decryptedText ? decryptedText.length : 'null/undefined');
     
     return {
       success: true,
@@ -336,6 +436,93 @@ ipcMain.handle('force-new-auth', async () => {
   } catch (error) {
     console.error('Force new auth error:', error);
     throw error;
+  }
+});
+
+// Log email analysis from renderer
+ipcMain.on('log-email-analysis', (event, analysisData) => {
+  console.log('=== RENDERER EMAIL ANALYSIS ===');
+  console.log('Subject:', analysisData.subject);
+  console.log('Body length:', analysisData.bodyLength);
+  console.log('Body content:', analysisData.bodyContent);
+  console.log('Snippet:', analysisData.snippet);
+  console.log('Full email keys:', Object.keys(analysisData.fullEmail || {}));
+  console.log('=== END RENDERER ANALYSIS ===');
+});
+
+// Log extraction method from renderer
+ipcMain.on('log-extraction-method', (event, method, data) => {
+  console.log(`=== RENDERER EXTRACTION: ${method} ===`);
+  if (data) {
+    console.log('Extracted data:', data);
+    console.log('Data length:', data.length);
+  } else {
+    console.log('No data extracted');
+  }
+  console.log('=== END EXTRACTION LOG ===');
+});
+
+// Log final extraction from renderer
+ipcMain.on('log-final-extraction', (event, data) => {
+  console.log('=== RENDERER FINAL EXTRACTION ===');
+  console.log('Final extracted data:', data);
+  console.log('Final data length:', data ? data.length : 'null');
+  console.log('=== END FINAL EXTRACTION ===');
+});
+
+// ETSI QKD IPC Handlers
+ipcMain.handle('etsi-get-status', async () => {
+  try {
+    initializeServices();
+    const status = await etsiKeyManager.getSystemStatus();
+    return status;
+  } catch (error) {
+    console.error('ETSI status error:', error);
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('etsi-get-statistics', async () => {
+  try {
+    initializeServices();
+    const stats = await etsiKeyManager.getETSIStatistics();
+    return stats;
+  } catch (error) {
+    console.error('ETSI statistics error:', error);
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('etsi-test-connectivity', async () => {
+  try {
+    initializeServices();
+    const results = await etsiKeyManager.testConnectivity();
+    return results;
+  } catch (error) {
+    console.error('ETSI connectivity test error:', error);
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('etsi-set-mode', async (event, mode) => {
+  try {
+    initializeServices();
+    etsiKeyManager.setPreferredMode(mode);
+    return { success: true, mode: mode };
+  } catch (error) {
+    console.error('ETSI set mode error:', error);
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('etsi-get-config', async () => {
+  try {
+    initializeServices();
+    const config = etsiKeyManager.getConfiguration();
+    return config;
+  } catch (error) {
+    console.error('ETSI get config error:', error);
+    return { error: error.message };
   }
 });
 

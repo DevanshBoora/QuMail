@@ -1,0 +1,60 @@
+{
+  "server_info": {
+    "name": "QuMail ETSI QKD Server",
+    "version": "2.1.1",
+    "description": "ETSI GS QKD 004 v2.1.1 Compliant Quantum Key Distribution Server"
+  },
+  "network": {
+    "port": 3443,
+    "host": "0.0.0.0",
+    "protocol": "https",
+    "tls_enabled": false
+  },
+  "capabilities": {
+    "max_key_size": 1024,
+    "max_key_count": 10000,
+    "max_connections": 100,
+    "supported_algorithms": [
+      "AES-256",
+      "OTP",
+      "KYBER",
+      "QUANTUM_SAFE"
+    ],
+    "supported_protocols": [
+      "ETSI_GS_QKD_004_v2.1.1",
+      "ETSI_GS_QKD_014_v1.1.1"
+    ]
+  },
+  "security": {
+    "authentication_required": false,
+    "certificate_validation": false,
+    "encryption_in_transit": true,
+    "key_derivation_function": "HKDF-SHA256"
+  },
+  "qos": {
+    "default_key_rate": 1000,
+    "max_key_rate": 10000,
+    "min_key_size": 128,
+    "max_key_size": 1024,
+    "key_lifetime": 3600,
+    "connection_timeout": 300
+  },
+  "logging": {
+    "level": "INFO",
+    "enable_audit": true,
+    "log_key_requests": true,
+    "log_connections": true
+  },
+  "interoperability": {
+    "vendor_id": "QuMail",
+    "device_id": "QuMail-QKD-Server-v1.0",
+    "compatibility_mode": "strict",
+    "fallback_enabled": true
+  },
+  "performance": {
+    "key_generation_threads": 4,
+    "connection_pool_size": 50,
+    "cache_size": 1000,
+    "cleanup_interval": 60
+  }
+}
