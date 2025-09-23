@@ -45,6 +45,9 @@
                     <div class="nav-item" data-view="compose" role="button" tabindex="0" aria-label="Compose new email">
                         <span class="nav-label">Compose</span>
                     </div>
+                    <div class="nav-item" data-view="decrypt" role="button" tabindex="0" aria-label="Decrypt messages">
+                        <span class="nav-label">Decrypt</span>
+                    </div>
                     <div class="nav-item" data-view="sent" role="button" tabindex="0" aria-label="Sent emails">
                         <span class="nav-label">Sent</span>
                     </div>
@@ -199,6 +202,77 @@
                                     <div class="input-group">
                                         <label>Message</label>
                                         <textarea id="compose-body" name="body" required placeholder="Type your encrypted message here..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Decrypt View -->
+                <div class="view decrypt-view" id="decrypt-view">
+                    <div class="content-header">
+                        <div class="header-title">
+                            <h2>Decrypt Message</h2>
+                            <span class="subtitle">Decrypt received QuMail encrypted messages</span>
+                        </div>
+                    </div>
+                    
+                    <div class="content-body">
+                        <form class="decrypt-form" id="decrypt-form">
+                            <div class="form-left">
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Encrypted Message</label>
+                                        <textarea id="encrypted-text" name="encryptedText" required placeholder="Paste the encrypted message here..."></textarea>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Decryption Key</label>
+                                        <input type="text" id="decryption-key" name="key" required placeholder="Enter the decryption key">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Encryption Level</label>
+                                        <select id="decryption-level" name="encryptionLevel" class="security-select">
+                                            <option value="aes256" selected>AES-256 - Standard Security</option>
+                                            <option value="kyber">Kyber PQC - Post-Quantum Safe</option>
+                                            <option value="otp">OTP - Maximum Security</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="input-group">
+                                        <label>Key ID (Optional)</label>
+                                        <input type="text" id="key-id" name="keyId" placeholder="Enter key ID if available">
+                                    </div>
+                                </div>
+                                
+                                <div class="form-actions">
+                                    <button type="button" class="action-btn secondary" id="clear-decrypt-form">
+                                        <span>Clear</span>
+                                    </button>
+                                    <button type="submit" class="action-btn primary">
+                                        <span>🔓 Decrypt Message</span>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-right">
+                                <div class="form-row full">
+                                    <div class="input-group">
+                                        <label>Decrypted Message</label>
+                                        <div class="decrypted-output" id="decrypted-output">
+                                            <div class="output-placeholder">
+                                                <div class="placeholder-icon">🔐</div>
+                                                <p>Decrypted message will appear here</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

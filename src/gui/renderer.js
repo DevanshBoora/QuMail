@@ -74,6 +74,17 @@ class QuMailRenderer {
             this.clearComposeForm();
         });
 
+        // Decrypt form
+        document.getElementById('decrypt-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.decryptMessage();
+        });
+
+        // Clear decrypt form
+        document.getElementById('clear-decrypt-form').addEventListener('click', () => {
+            this.clearDecryptForm();
+        });
+
         // Demo mode
         document.getElementById('enable-demo').addEventListener('click', () => {
             this.enableDemoMode();
@@ -277,32 +288,22 @@ class QuMailRenderer {
         try {
             // Force new authentication by setting environment variable
             await ipcRenderer.invoke('force-new-auth');
+            
+            // Clear current authentication status
             this.updateAuthStatus(false);
+            
+            // Clear emails
             this.emails = [];
             this.displayEmails([]);
             
-            // Wait a moment then start new authentication
-            setTimeout(async () => {
-                try {
-                    const result = await ipcRenderer.invoke('gmail-auth');
-                    if (result.success) {
-                        this.updateAuthStatus(true);
-                        this.showToast('✅ Account switched successfully!', 'success');
-                        this.switchView('inbox');
-                        setTimeout(() => {
-                            this.fetchEmails();
-                        }, 500);
-                    }
-                } catch (error) {
-                    console.error('Account switch error:', error);
-                    this.showToast('❌ Failed to switch account: ' + error.message, 'error');
-                } finally {
-                    this.hideLoading();
-                }
-            }, 1000);
+            // Hide loading before starting new auth
+            this.hideLoading();
+            
+            // Start new authentication (this will show its own loading)
+            await this.authenticateGmail();
         } catch (error) {
-            console.error('Account switch error:', error);
-            this.showToast('❌ Failed to switch account: ' + error.message, 'error');
+            console.error('Switch account error:', error);
+            this.showToast('❌ Failed to switch account', 'error');
             this.hideLoading();
         }
     }
@@ -483,6 +484,94 @@ class QuMailRenderer {
         document.getElementById('encryption-level').value = 'aes256';
     }
 
+    async decryptMessage() {
+        const form = document.getElementById('decrypt-form');
+        const formData = new FormData(form);
+        
+        const decryptionData = {
+            encryptedText: formData.get('encryptedText'),
+            key: formData.get('key'),
+            encryptionLevel: formData.get('encryptionLevel'),
+            keyId: formData.get('keyId') || null
+        };
+
+        if (!decryptionData.encryptedText || !decryptionData.key || !decryptionData.encryptionLevel) {
+            this.showToast('❌ Please fill in all required fields', 'error');
+            return;
+        }
+
+        this.showLoading('Decrypting message...');
+        
+        try {
+            const result = await ipcRenderer.invoke('decrypt-message', decryptionData);
+            
+            if (result.success) {
+                this.showToast('✅ Message decrypted successfully!', 'success');
+                this.displayDecryptedMessage(result.decryptedText, result.originalEncryption, result.keyId);
+            } else {
+                throw new Error(result.error || 'Failed to decrypt message');
+            }
+        } catch (error) {
+            console.error('Decrypt message error:', error);
+            let errorMessage = 'Failed to decrypt message';
+            
+            if (error.message.includes('Invalid key') || error.message.includes('decryption failed')) {
+                errorMessage = 'Invalid decryption key or wrong encryption level. Please check your inputs.';
+            } else if (error.message.includes('Missing required')) {
+                errorMessage = 'Please fill in all required fields.';
+            } else {
+                errorMessage = `Decryption failed: ${error.message}`;
+            }
+            
+            this.showToast('❌ ' + errorMessage, 'error');
+        } finally {
+            this.hideLoading();
+        }
+    }
+
+    displayDecryptedMessage(decryptedText, encryptionLevel, keyId) {
+        const outputDiv = document.getElementById('decrypted-output');
+        outputDiv.innerHTML = `
+            <div class="decrypted-content">
+                <div class="decryption-success">
+                    <div class="success-icon">🔓</div>
+                    <h3>Message Decrypted Successfully!</h3>
+                </div>
+                <div class="decryption-meta">
+                    <div class="meta-item">
+                        <span class="meta-label">Encryption Level:</span>
+                        <span class="encryption-badge ${encryptionLevel}">${encryptionLevel.toUpperCase()}</span>
+                    </div>
+                    ${keyId ? `<div class="meta-item">
+                        <span class="meta-label">Key ID:</span>
+                        <code>${keyId}</code>
+                    </div>` : ''}
+                </div>
+                <div class="decrypted-message">
+                    <div class="message-header">
+                        <span class="message-label">Decrypted Message:</span>
+                        <button class="copy-btn" onclick="navigator.clipboard.writeText('${this.escapeHtml(decryptedText)}')">Copy</button>
+                    </div>
+                    <div class="message-content">${this.formatEmailBody(decryptedText)}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    clearDecryptForm() {
+        document.getElementById('decrypt-form').reset();
+        document.getElementById('decryption-level').value = 'aes256';
+        
+        // Reset the output area
+        const outputDiv = document.getElementById('decrypted-output');
+        outputDiv.innerHTML = `
+            <div class="output-placeholder">
+                <div class="placeholder-icon">🔐</div>
+                <p>Decrypted message will appear here</p>
+            </div>
+        `;
+    }
+
     async enableDemoMode() {
         this.showLoading('Enabling demo mode...');
         
@@ -599,10 +688,23 @@ class QuMailRenderer {
         const text = overlay.querySelector('.loading-text');
         text.textContent = message;
         overlay.classList.add('active');
+        
+        // Auto-hide loading after 30 seconds to prevent stuck states
+        if (this.loadingTimeout) {
+            clearTimeout(this.loadingTimeout);
+        }
+        this.loadingTimeout = setTimeout(() => {
+            this.hideLoading();
+            console.warn('[Renderer] Loading timeout - auto-hiding loading overlay');
+        }, 30000);
     }
 
     hideLoading() {
         document.getElementById('loading-overlay').classList.remove('active');
+        if (this.loadingTimeout) {
+            clearTimeout(this.loadingTimeout);
+            this.loadingTimeout = null;
+        }
     }
 
     showToast(message, type = 'success') {

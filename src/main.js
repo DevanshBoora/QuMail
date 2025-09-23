@@ -205,9 +205,10 @@ ipcMain.handle('send-email', async (event, emailData) => {
     let encryptedSubject = subject;
     let encryptedBody = body;
     let keyId = null;
+    let quantumKey = null;
 
     if (encryptionLevel && encryptionLevel !== 'plain') {
-      const quantumKey = await qkdClient.getQuantumKey();
+      quantumKey = await qkdClient.getQuantumKey();
       keyId = quantumKey.keyId;
       encryptedSubject = await encryptionEngine.encrypt(subject, quantumKey.key, encryptionLevel);
       encryptedBody = await encryptionEngine.encrypt(body, quantumKey.key, encryptionLevel);
@@ -221,7 +222,7 @@ ipcMain.handle('send-email', async (event, emailData) => {
       encrypted: encryptionLevel !== 'plain',
       encryptionLevel,
       keyId,
-      originalKey: encryptionLevel !== 'plain' ? quantumKey.key : null
+      originalKey: quantumKey ? quantumKey.key : null
     };
 
     console.log('[Main] Attempting to send email via Gmail API...');
@@ -273,6 +274,42 @@ ipcMain.handle('gmail-logout', async () => {
   } catch (error) {
     console.error('Logout error:', error);
     throw error;
+  }
+});
+
+// Decrypt message handler
+ipcMain.handle('decrypt-message', async (event, decryptionData) => {
+  try {
+    const { encryptedText, key, encryptionLevel, keyId } = decryptionData;
+    
+    if (!encryptedText || !key || !encryptionLevel) {
+      throw new Error('Missing required decryption parameters');
+    }
+    
+    console.log('[Main] Attempting to decrypt message...');
+    console.log('[Main] Encryption Level:', encryptionLevel);
+    console.log('[Main] Key ID:', keyId);
+    
+    // Initialize services if not already done
+    initializeServices();
+    
+    // Decrypt the message using the encryption engine
+    const decryptedText = await encryptionEngine.decrypt(encryptedText, key, encryptionLevel);
+    
+    console.log('[Main] Message decrypted successfully');
+    
+    return {
+      success: true,
+      decryptedText,
+      originalEncryption: encryptionLevel,
+      keyId
+    };
+  } catch (error) {
+    console.error('[Main] Decrypt message error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 });
 
