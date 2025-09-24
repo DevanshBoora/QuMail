@@ -551,7 +551,7 @@ class QuMailRenderer {
             // Pattern 1: Look for "Encrypted Message Body" section specifically (NEW PRIORITY)
             const messageBodyMatch = emailBody.match(/📝 Encrypted Message Body:[\s\S]*?<div[^>]*font-family:[^>]*monospace[^>]*>([^<]+)<\/div>/i);
             if (messageBodyMatch) {
-                encryptedData = messageBodyMatch[1].trim();
+                encryptedData = this.decodeHtmlEntities(messageBodyMatch[1].trim());
                 console.log('Found encrypted MESSAGE BODY data (Message Body section):', encryptedData);
                 ipcRenderer.send('log-extraction-method', 'MESSAGE_BODY_SECTION', encryptedData);
             }
@@ -560,7 +560,7 @@ class QuMailRenderer {
             if (!encryptedData) {
                 const htmlMonospaceMatch = emailBody.match(/<div[^>]*font-family:[^>]*monospace[^>]*>([^<]+)<\/div>/i);
                 if (htmlMonospaceMatch) {
-                    encryptedData = htmlMonospaceMatch[1].trim();
+                    encryptedData = this.decodeHtmlEntities(htmlMonospaceMatch[1].trim());
                     console.log('Found encrypted data (HTML monospace method):', encryptedData);
                     ipcRenderer.send('log-extraction-method', 'HTML_MONOSPACE', encryptedData);
                 }
@@ -581,7 +581,7 @@ class QuMailRenderer {
             if (!encryptedData) {
                 const htmlJsonMatch = emailBody.match(/<[^>]*>\s*(\{[^}]*"algorithm"[^}]*\})\s*<\/[^>]*>/);
                 if (htmlJsonMatch) {
-                    encryptedData = htmlJsonMatch[1];
+                    encryptedData = this.decodeHtmlEntities(htmlJsonMatch[1]);
                     console.log('Found encrypted data (HTML wrapped):', encryptedData);
                     ipcRenderer.send('log-extraction-method', 'HTML_WRAPPED', encryptedData);
                 }
@@ -591,7 +591,7 @@ class QuMailRenderer {
             if (!encryptedData) {
                 const allJsonMatches = emailBody.match(/\{[^}]*"algorithm"[^}]*\}/g);
                 if (allJsonMatches && allJsonMatches.length > 1) {
-                    encryptedData = allJsonMatches[1]; // Take the second match
+                    encryptedData = this.decodeHtmlEntities(allJsonMatches[1]); // Take the second match
                     console.log('Found encrypted data (Second JSON match - likely message):', encryptedData);
                     ipcRenderer.send('log-extraction-method', 'SECOND_JSON', encryptedData);
                 }
@@ -622,7 +622,7 @@ class QuMailRenderer {
             if (!encryptedData) {
                 let htmlMatch = emailBody.match(/<div[^>]*font-family[^>]*monospace[^>]*>([^<]+)<\/div>/i);
                 if (htmlMatch) {
-                    encryptedData = htmlMatch[1].trim();
+                    encryptedData = this.decodeHtmlEntities(htmlMatch[1].trim());
                     console.log('Found encrypted data (HTML method):', encryptedData);
                 }
             }
@@ -766,7 +766,7 @@ class QuMailRenderer {
                     // Extract JSON from HTML content - look for the encrypted data div
                     const htmlMatch = body.match(/<div[^>]*font-family[^>]*monospace[^>]*>([^<]+)<\/div>/i);
                     if (htmlMatch) {
-                        rawEncryptedData = htmlMatch[1].trim();
+                        rawEncryptedData = this.decodeHtmlEntities(htmlMatch[1].trim());
                         try {
                             encryptionData = JSON.parse(rawEncryptedData);
                         } catch (e) {
@@ -1438,6 +1438,12 @@ ID: ${decryptionInfo.keyId}</textarea>
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    decodeHtmlEntities(text) {
+        const div = document.createElement('div');
+        div.innerHTML = text;
+        return div.textContent || div.innerText || '';
     }
 }
 
