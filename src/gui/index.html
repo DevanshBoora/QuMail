@@ -193,6 +193,28 @@
                                     </div>
                                 </div>
                                 
+                                <!-- Compact Security Indicator -->
+                                <div class="form-row">
+                                    <div class="security-indicator-compact" id="security-indicator">
+                                        <div class="security-header-compact">
+                                            <div class="security-icon" id="security-icon">🔒</div>
+                                            <div class="security-info">
+                                                <div class="security-title" id="security-title">AES-256 Encryption</div>
+                                                <div class="security-level-badge" id="security-badge">Standard</div>
+                                            </div>
+                                            <div class="security-strength-compact">
+                                                <div class="strength-bar-compact">
+                                                    <div class="strength-fill" id="strength-fill"></div>
+                                                </div>
+                                                <div class="strength-text" id="strength-text">High (75%)</div>
+                                            </div>
+                                        </div>
+                                        <div class="security-description-compact" id="security-description">
+                                            Your message will be encrypted using AES-256 algorithm, providing strong protection against conventional attacks.
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div class="form-actions">
                                     <button type="button" class="action-btn secondary" id="clear-form">
                                         <span>Clear</span>
@@ -424,65 +446,6 @@
                     </div>
                 </div>
 
-                <!-- Compose View -->
-                <div class="view compose-view" id="compose-view">
-                    <div class="content-header">
-                        <div class="header-title">
-                            <h2>Compose Message</h2>
-                            <span class="subtitle" id="compose-subtitle">Send quantum-safe encrypted email</span>
-                        </div>
-                    </div>
-                    
-                    <div class="content-body">
-                        <form class="compose-form" id="compose-form">
-                            <div class="form-left">
-                                <div class="form-row">
-                                    <div class="input-group">
-                                        <label>To</label>
-                                        <input type="email" id="compose-to" name="to" required placeholder="Enter recipient email">
-                                    </div>
-                                </div>
-                                
-                                <div class="form-row">
-                                    <div class="input-group">
-                                        <label>Subject</label>
-                                        <input type="text" id="compose-subject" name="subject" required placeholder="Enter email subject">
-                                    </div>
-                                </div>
-                                
-                                <div class="form-row">
-                                    <div class="input-group">
-                                        <label>Security Level</label>
-                                        <select id="encryption-level" name="encryptionLevel" class="security-select">
-                                            <option value="plain">Plain Text - No Encryption</option>
-                                            <option value="aes256" selected>AES-256 - Standard Security</option>
-                                            <option value="kyber">Kyber PQC - Post-Quantum Safe</option>
-                                            <option value="otp">OTP - Maximum Security</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                
-                                <div class="form-actions">
-                                    <button type="button" class="action-btn secondary" id="clear-form">
-                                        <span>Clear</span>
-                                    </button>
-                                    <button type="submit" class="action-btn primary">
-                                        <span>Send Encrypted Email</span>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div class="form-right">
-                                <div class="form-row full">
-                                    <div class="input-group">
-                                        <label>Message</label>
-                                        <textarea id="compose-body" name="body" required placeholder="Type your encrypted message here..."></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-                </div>
     <div class="loading-overlay" id="loading-overlay">
         <div class="loading-content">
             <div class="loading-spinner"></div>

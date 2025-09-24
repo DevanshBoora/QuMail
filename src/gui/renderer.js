@@ -18,6 +18,11 @@ class QuMailRenderer {
             this.checkQKDStatus();
             this.loadSettings();
             
+            // Initialize security indicator with default AES-256
+            setTimeout(() => {
+                this.updateSecurityIndicator('aes256');
+            }, 100);
+            
             // Auto-refresh QKD status every 30 seconds
             setInterval(() => this.checkQKDStatus(), 30000);
             
@@ -90,6 +95,11 @@ class QuMailRenderer {
         // Clear form
         document.getElementById('clear-form').addEventListener('click', () => {
             this.clearComposeForm();
+        });
+
+        // Security level indicator
+        document.getElementById('encryption-level').addEventListener('change', (e) => {
+            this.updateSecurityIndicator(e.target.value);
         });
 
         // Decrypt form
@@ -965,6 +975,89 @@ class QuMailRenderer {
     clearComposeForm() {
         document.getElementById('compose-form').reset();
         document.getElementById('encryption-level').value = 'aes256';
+        this.updateSecurityIndicator('aes256');
+    }
+
+    updateSecurityIndicator(level) {
+        const indicator = document.getElementById('security-indicator');
+        const icon = document.getElementById('security-icon');
+        const title = document.getElementById('security-title');
+        const badge = document.getElementById('security-badge');
+        const description = document.getElementById('security-description');
+        const features = document.getElementById('security-features');
+        const strengthText = document.getElementById('strength-text');
+
+        if (!indicator) return;
+
+        // Remove existing level classes
+        indicator.classList.remove('plain', 'aes256', 'kyber', 'otp');
+        indicator.classList.add(level);
+
+        const securityLevels = {
+            plain: {
+                icon: '🔓',
+                title: 'Plain Text',
+                badge: 'None',
+                description: 'Your message will be sent without encryption. Anyone can read it during transmission. Only use for non-sensitive information.',
+                features: [
+                    { icon: '⚠️', text: 'No encryption protection' },
+                    { icon: '⚠️', text: 'Readable by anyone' },
+                    { icon: '✓', text: 'Fastest transmission' }
+                ],
+                strength: 'None (0%)'
+            },
+            aes256: {
+                icon: '🔒',
+                title: 'AES-256 Encryption',
+                badge: 'Standard',
+                description: 'Your message will be encrypted using AES-256 algorithm, providing strong protection against conventional attacks. Suitable for most secure communications.',
+                features: [
+                    { icon: '✓', text: '256-bit encryption key' },
+                    { icon: '✓', text: 'Industry standard security' },
+                    { icon: '✓', text: 'Fast encryption/decryption' }
+                ],
+                strength: 'High (75%)'
+            },
+            kyber: {
+                icon: '🛡️',
+                title: 'Kyber Post-Quantum',
+                badge: 'Future-Safe',
+                description: 'Your message will be encrypted using Kyber post-quantum cryptography, providing protection against both classical and future quantum computer attacks.',
+                features: [
+                    { icon: '✓', text: 'Quantum-resistant algorithm' },
+                    { icon: '✓', text: 'NIST standardized PQC' },
+                    { icon: '✓', text: 'Future-proof security' }
+                ],
+                strength: 'Maximum (90%)'
+            },
+            otp: {
+                icon: '🔐',
+                title: 'One-Time Pad',
+                badge: 'Maximum',
+                description: 'Your message will be encrypted using quantum-generated one-time pad keys, providing theoretically unbreakable security. The highest level of protection available.',
+                features: [
+                    { icon: '✓', text: 'Theoretically unbreakable' },
+                    { icon: '✓', text: 'Quantum-generated keys' },
+                    { icon: '✓', text: 'Perfect secrecy guarantee' }
+                ],
+                strength: 'Perfect (100%)'
+            }
+        };
+
+        const config = securityLevels[level];
+        if (!config) return;
+
+        // Update content
+        icon.textContent = config.icon;
+        title.textContent = config.title;
+        badge.textContent = config.badge;
+        description.textContent = config.description;
+        strengthText.textContent = config.strength;
+
+        // For compact version, we don't show features list
+        // Just update the description with key info
+
+        console.log(`[Security Indicator] Updated to ${level.toUpperCase()}`);
     }
 
     async decryptMessage() {
