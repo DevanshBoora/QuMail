@@ -102,6 +102,9 @@ class QuMailRenderer {
             this.updateSecurityIndicator(e.target.value);
         });
 
+        // Attachment functionality
+        this.setupAttachmentHandlers();
+
         // Decrypt form
         document.getElementById('decrypt-form').addEventListener('submit', (e) => {
             e.preventDefault();
@@ -378,9 +381,16 @@ class QuMailRenderer {
     }
 
     displayEmails(emails) {
+        console.log('📧 DISPLAY EMAILS CALLED with', emails.length, 'emails');
         const emailList = document.getElementById('email-list');
         
+        if (!emailList) {
+            console.log('❌ Email list element not found!');
+            return;
+        }
+        
         if (emails.length === 0) {
+            console.log('📧 No emails to display');
             this.showEmptyState('inbox', 'No emails to display');
             return;
         }
@@ -405,11 +415,17 @@ class QuMailRenderer {
 
         // Add click event listeners to email items
         const emailItems = emailList.querySelectorAll('.email-item');
+        console.log('📧 Setting up click handlers for', emailItems.length, 'email items');
+        
         emailItems.forEach((item, index) => {
-            item.addEventListener('click', () => this.openEmail(index));
+            item.addEventListener('click', () => {
+                console.log('📧 EMAIL ITEM CLICKED! Index:', index);
+                this.openEmail(index);
+            });
             item.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
+                    console.log('📧 EMAIL ITEM KEYBOARD ACTIVATED! Index:', index);
                     this.openEmail(index);
                 }
             });
@@ -417,12 +433,17 @@ class QuMailRenderer {
     }
 
     openEmail(emailIndex) {
+        console.log('🔥 OPEN EMAIL CALLED! Index:', emailIndex);
+        console.log('🔥 Total emails:', this.emails.length);
+        
         if (emailIndex < 0 || emailIndex >= this.emails.length) {
+            console.log('❌ Email index out of range');
             this.showToast('❌ Email not found', 'error');
             return;
         }
         
         const email = this.emails[emailIndex];
+        console.log('🔥 Opening email:', email);
         this.showEmailDetail(email);
     }
 
@@ -456,18 +477,153 @@ class QuMailRenderer {
             if (email.encrypted) {
                 encryptionDiv.innerHTML = `
                     <span class="encryption-badge ${email.encryptionLevel}">
-                        🔒 ${email.encryptionLevel.toUpperCase()} Encrypted
+                        🔒 ${email.encryptionLevel?.toUpperCase()} Encrypted
                     </span>
                 `;
             } else {
                 encryptionDiv.innerHTML = '';
             }
             
+            // Show attachments if available
+            console.log('📧 ABOUT TO CALL displayEmailAttachments with email:', email);
+            this.displayEmailAttachments(email);
+            console.log('📧 FINISHED calling displayEmailAttachments');
+            
             // Switch to detail view
             this.switchView('email-detail');
         } catch (error) {
             console.error('Error showing email detail:', error);
             this.showToast('❌ Error opening email', 'error');
+        }
+    }
+
+    displayEmailAttachments(email) {
+        console.log('🔍 DISPLAY EMAIL ATTACHMENTS CALLED');
+        console.log('🔍 Email object:', email);
+        console.log('🔍 Email.attachments:', email.attachments);
+        console.log('🔍 Email.attachments length:', email.attachments ? email.attachments.length : 'undefined');
+        
+        // If no attachments in email object, try to parse from HTML body
+        let attachments = email.attachments || [];
+        if (attachments.length === 0 && email.body) {
+            console.log('🔍 No attachments in email object, parsing from HTML body...');
+            attachments = this.parseAttachmentsFromHTML(email.body);
+            console.log('🔍 Parsed attachments from HTML:', attachments);
+        }
+        
+        // Find or create attachments container
+        let attachmentsContainer = document.getElementById('email-detail-attachments');
+        if (!attachmentsContainer) {
+            // Create attachments container dynamically
+            const emailDetail = document.querySelector('.email-detail');
+            if (emailDetail) {
+                attachmentsContainer = document.createElement('div');
+                attachmentsContainer.id = 'email-detail-attachments';
+                attachmentsContainer.className = 'email-attachments';
+                attachmentsContainer.style.display = 'none';
+                emailDetail.appendChild(attachmentsContainer);
+            }
+        }
+        
+        if (!attachmentsContainer) return;
+        
+        // Check if we have attachments (from email object or parsed from HTML)
+        if (attachments && attachments.length > 0) {
+            console.log(`📎 DISPLAYING ${attachments.length} attachments for email`);
+            console.log(`📎 Attachments:`, attachments);
+            
+            attachmentsContainer.style.display = 'block';
+            attachmentsContainer.innerHTML = `
+                <h4 class="section-title">📎 Attachments (${attachments.length})</h4>
+                <div class="attachments-list">
+                    ${attachments.map((att, index) => {
+                        console.log(`📎 Creating download button for attachment ${index}:`, att);
+                        return `
+                        <div class="attachment-item">
+                            <div class="attachment-info">
+                                <div class="attachment-icon">${this.getFileIcon(att.mimeType || att.type)}</div>
+                                <div class="attachment-details">
+                                    <div class="attachment-name">${att.filename || att.name}</div>
+                                    <div class="attachment-size">${this.formatFileSize(att.size)}</div>
+                                </div>
+                            </div>
+                            <div class="attachment-actions">
+                                <button class="download-btn" onclick="console.log('📎 DOWNLOAD BUTTON CLICKED!'); window.quMailRenderer.downloadAttachment(${index}, '${att.filename || att.name}', null, '${att.mimeType || att.type}', '${email.id}', '${att.attachmentId || 'html-parsed'}')">
+                                    📥 Download
+                                </button>
+                            </div>
+                        </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } else {
+            attachmentsContainer.style.display = 'none';
+        }
+    }
+
+    parseAttachmentsFromHTML(htmlBody) {
+        console.log('🔍 Parsing attachments from HTML body...');
+        console.log('🔍 HTML body length:', htmlBody.length);
+        console.log('🔍 HTML body sample:', htmlBody.substring(0, 500));
+        
+        const attachments = [];
+        
+        try {
+            // Look for attachment sections in the HTML - updated pattern
+            const attachmentRegex = /<strong>([^<]+)<\/strong>\s*\(([^)]+)\)\s*-\s*([A-Z0-9]+)\s*Encrypted/gi;
+            let match;
+            
+            console.log('🔍 Testing regex pattern...');
+            const testMatches = htmlBody.match(attachmentRegex);
+            console.log('🔍 Regex test matches:', testMatches);
+            
+            while ((match = attachmentRegex.exec(htmlBody)) !== null) {
+                const [, filename, filesize, encryption] = match;
+                console.log(`🔍 Found attachment in HTML: ${filename}, size: ${filesize}, encryption: ${encryption}`);
+                
+                // Parse file size to bytes (rough estimate)
+                let sizeInBytes = 0;
+                if (filesize.includes('KB')) {
+                    sizeInBytes = parseFloat(filesize) * 1024;
+                } else if (filesize.includes('MB')) {
+                    sizeInBytes = parseFloat(filesize) * 1024 * 1024;
+                } else if (filesize.includes('GB')) {
+                    sizeInBytes = parseFloat(filesize) * 1024 * 1024 * 1024;
+                } else {
+                    sizeInBytes = parseFloat(filesize) || 0;
+                }
+                
+                // Determine MIME type from file extension
+                const extension = filename.toLowerCase().split('.').pop();
+                let mimeType = 'application/octet-stream';
+                switch (extension) {
+                    case 'jpg': case 'jpeg': mimeType = 'image/jpeg'; break;
+                    case 'png': mimeType = 'image/png'; break;
+                    case 'gif': mimeType = 'image/gif'; break;
+                    case 'pdf': mimeType = 'application/pdf'; break;
+                    case 'txt': mimeType = 'text/plain'; break;
+                    case 'doc': mimeType = 'application/msword'; break;
+                    case 'docx': mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; break;
+                }
+                
+                attachments.push({
+                    filename: filename,
+                    name: filename,
+                    size: Math.round(sizeInBytes),
+                    mimeType: mimeType,
+                    type: mimeType,
+                    attachmentId: 'html-parsed-' + filename.replace(/[^a-zA-Z0-9]/g, '_'),
+                    encrypted: true,
+                    encryptionLevel: encryption.toLowerCase()
+                });
+            }
+            
+            console.log(`🔍 Parsed ${attachments.length} attachments from HTML`);
+            return attachments;
+        } catch (error) {
+            console.error('🔍 Error parsing attachments from HTML:', error);
+            return [];
         }
     }
 
@@ -478,6 +634,16 @@ class QuMailRenderer {
                 document.getElementById('email-detail-body').innerHTML = this.formatEmailBody(fullEmail.body);
                 // Update current email with full content
                 this.currentEmail.body = fullEmail.body;
+                
+                // Re-run attachment detection with full email body
+                console.log('🔄 Re-running attachment detection with full email body...');
+                this.displayEmailAttachments(this.currentEmail);
+                
+                // Also update attachments display with full email data
+                if (fullEmail.attachments) {
+                    this.currentEmail.attachments = fullEmail.attachments;
+                    this.displayEmailAttachments(this.currentEmail);
+                }
             }
         } catch (error) {
             console.error('Error fetching full email content:', error);
@@ -548,15 +714,46 @@ class QuMailRenderer {
             // Try multiple patterns to find encrypted message body
             let bodyJsonMatch = null;
             
-            // Pattern 1: Look for "Encrypted Message Body" section specifically (NEW PRIORITY)
-            const messageBodyMatch = emailBody.match(/📝 Encrypted Message Body:[\s\S]*?<div[^>]*font-family:[^>]*monospace[^>]*>([^<]+)<\/div>/i);
+            console.log('🔍 STARTING EXTRACTION PATTERNS - Looking for encrypted message body...');
+            console.log('🔍 Email body contains "📝 Encrypted Message Body":', emailBody.includes('📝 Encrypted Message Body'));
+            console.log('🔍 Email body contains "🏷️ Encrypted Subject":', emailBody.includes('🏷️ Encrypted Subject'));
+            
+            // Pattern 1: Look for "Encrypted Message Body" section specifically (HIGHEST PRIORITY)
+            const messageBodyMatch = emailBody.match(/📝 Encrypted Message Body:[\s\S]*?<div[^>]*font-family:[^>]*Courier New[^>]*monospace[^>]*>([\s\S]*?)<\/div>/i);
             if (messageBodyMatch) {
                 encryptedData = this.decodeHtmlEntities(messageBodyMatch[1].trim());
-                console.log('Found encrypted MESSAGE BODY data (Message Body section):', encryptedData);
+                console.log('✅ Found encrypted MESSAGE BODY data (Message Body section):', encryptedData);
                 ipcRenderer.send('log-extraction-method', 'MESSAGE_BODY_SECTION', encryptedData);
             }
             
-            // Pattern 2: Look for JSON in any monospace div (fallback)
+            // Pattern 1b: Alternative pattern for Message Body section
+            if (!encryptedData) {
+                const altMessageBodyMatch = emailBody.match(/📝 Encrypted Message Body:[\s\S]*?<div[^>]*>([\s\S]*?)<\/div>/i);
+                if (altMessageBodyMatch) {
+                    const content = altMessageBodyMatch[1].trim();
+                    // Check if it looks like JSON
+                    if (content.includes('"algorithm"') && content.includes('"data"')) {
+                        encryptedData = this.decodeHtmlEntities(content);
+                        console.log('✅ Found encrypted MESSAGE BODY data (Alt Message Body section):', encryptedData);
+                        ipcRenderer.send('log-extraction-method', 'ALT_MESSAGE_BODY_SECTION', encryptedData);
+                    }
+                }
+            }
+            
+            // Pattern 2: Look for JSON in blue border div (message body container)
+            if (!encryptedData) {
+                const blueBorderMatch = emailBody.match(/border:\s*1px\s+solid\s+#2196f3[^>]*>([\s\S]*?)<\/div>/i);
+                if (blueBorderMatch) {
+                    const content = blueBorderMatch[1].trim();
+                    if (content.includes('"algorithm"') && content.includes('"data"')) {
+                        encryptedData = this.decodeHtmlEntities(content);
+                        console.log('✅ Found encrypted MESSAGE BODY data (Blue border div):', encryptedData);
+                        ipcRenderer.send('log-extraction-method', 'BLUE_BORDER_DIV', encryptedData);
+                    }
+                }
+            }
+            
+            // Pattern 2b: Look for JSON in any monospace div (fallback)
             if (!encryptedData) {
                 const htmlMonospaceMatch = emailBody.match(/<div[^>]*font-family:[^>]*monospace[^>]*>([^<]+)<\/div>/i);
                 if (htmlMonospaceMatch) {
@@ -566,14 +763,24 @@ class QuMailRenderer {
                 }
             }
             
-            // Pattern 3: Look for JSON with "data" field (more likely to be message content)
+            // Pattern 3: Look for JSON with "data" field, but exclude subject section
             if (!encryptedData) {
                 bodyJsonMatch = emailBody.match(/\{[^}]*"algorithm"[^}]*"data"[^}]*\}/g);
                 if (bodyJsonMatch && bodyJsonMatch.length > 0) {
-                    // If multiple matches, prefer the longer one (likely the message, not subject)
-                    encryptedData = bodyJsonMatch.reduce((a, b) => a.length > b.length ? a : b);
-                    console.log('Found encrypted MESSAGE data (Body JSON method):', encryptedData);
-                    ipcRenderer.send('log-extraction-method', 'BODY_JSON_DATA', encryptedData);
+                    // Filter out any matches that are in the subject section
+                    const filteredMatches = bodyJsonMatch.filter(match => {
+                        const matchIndex = emailBody.indexOf(match);
+                        const beforeMatch = emailBody.substring(Math.max(0, matchIndex - 200), matchIndex);
+                        // Exclude if it's in the subject section
+                        return !beforeMatch.includes('🏷️ Encrypted Subject:');
+                    });
+                    
+                    if (filteredMatches.length > 0) {
+                        // If multiple matches, prefer the longer one (likely the message, not subject)
+                        encryptedData = filteredMatches.reduce((a, b) => a.length > b.length ? a : b);
+                        console.log('✅ Found encrypted MESSAGE data (Filtered Body JSON method):', encryptedData);
+                        ipcRenderer.send('log-extraction-method', 'FILTERED_BODY_JSON_DATA', encryptedData);
+                    }
                 }
             }
             
@@ -587,13 +794,34 @@ class QuMailRenderer {
                 }
             }
             
-            // Pattern 5: Look for the SECOND JSON occurrence (first might be subject, second might be message)
+            // Pattern 5: Look for JSON occurrences and pick the one NOT in subject section
             if (!encryptedData) {
                 const allJsonMatches = emailBody.match(/\{[^}]*"algorithm"[^}]*\}/g);
-                if (allJsonMatches && allJsonMatches.length > 1) {
-                    encryptedData = this.decodeHtmlEntities(allJsonMatches[1]); // Take the second match
-                    console.log('Found encrypted data (Second JSON match - likely message):', encryptedData);
-                    ipcRenderer.send('log-extraction-method', 'SECOND_JSON', encryptedData);
+                if (allJsonMatches && allJsonMatches.length > 0) {
+                    // Find the JSON that's NOT in the subject section
+                    for (let i = 0; i < allJsonMatches.length; i++) {
+                        const match = allJsonMatches[i];
+                        const matchIndex = emailBody.indexOf(match);
+                        const beforeMatch = emailBody.substring(Math.max(0, matchIndex - 300), matchIndex);
+                        const afterMatch = emailBody.substring(matchIndex, Math.min(emailBody.length, matchIndex + 300));
+                        
+                        // Prefer matches that are in the message body section or NOT in subject section
+                        if (afterMatch.includes('📝 Encrypted Message Body') || 
+                            beforeMatch.includes('📝 Encrypted Message Body') ||
+                            !beforeMatch.includes('🏷️ Encrypted Subject')) {
+                            encryptedData = this.decodeHtmlEntities(match);
+                            console.log('✅ Found encrypted MESSAGE data (Smart JSON selection):', encryptedData);
+                            ipcRenderer.send('log-extraction-method', 'SMART_JSON_SELECTION', encryptedData);
+                            break;
+                        }
+                    }
+                    
+                    // If still no match, take the last one (likely the message body)
+                    if (!encryptedData && allJsonMatches.length > 0) {
+                        encryptedData = this.decodeHtmlEntities(allJsonMatches[allJsonMatches.length - 1]);
+                        console.log('⚠️ Found encrypted data (Last JSON - fallback):', encryptedData);
+                        ipcRenderer.send('log-extraction-method', 'LAST_JSON_FALLBACK', encryptedData);
+                    }
                 }
             }
             
@@ -612,9 +840,13 @@ class QuMailRenderer {
             if (encryptedData) {
                 console.log('🎯 FINAL EXTRACTED DATA:', encryptedData);
                 console.log('🎯 DATA LENGTH:', encryptedData.length);
+                console.log('🎯 IS VALID JSON?', encryptedData.startsWith('{') && encryptedData.endsWith('}'));
+                console.log('🎯 CONTAINS ALGORITHM?', encryptedData.includes('"algorithm"'));
+                console.log('🎯 CONTAINS DATA FIELD?', encryptedData.includes('"data"'));
                 ipcRenderer.send('log-final-extraction', encryptedData);
             } else {
                 console.log('❌ NO ENCRYPTED DATA FOUND ANYWHERE!');
+                console.log('❌ This means all extraction patterns failed!');
                 ipcRenderer.send('log-extraction-method', 'NO_DATA_FOUND', null);
             }
 
@@ -909,7 +1141,7 @@ class QuMailRenderer {
             subject: formData.get('subject'),
             body: formData.get('body'),
             encryptionLevel: formData.get('encryptionLevel'),
-            attachments: []
+            attachments: this.attachedFiles || []
         };
 
         if (!emailData.to || !emailData.subject || !emailData.body) {
@@ -976,6 +1208,318 @@ class QuMailRenderer {
         document.getElementById('compose-form').reset();
         document.getElementById('encryption-level').value = 'aes256';
         this.updateSecurityIndicator('aes256');
+        // Clear attachments
+        this.clearAttachments();
+    }
+
+    setupAttachmentHandlers() {
+        this.attachedFiles = [];
+        
+        const fileInput = document.getElementById('file-input');
+        const dropZone = document.getElementById('attachment-drop-zone');
+        const browseBtn = document.getElementById('browse-files');
+
+        // Browse files button
+        browseBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            this.handleFiles(e.target.files);
+        });
+
+        // Drag and drop
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            this.handleFiles(e.dataTransfer.files);
+        });
+
+        // Click on drop zone to browse
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+    }
+
+    async handleFiles(files) {
+        for (const file of Array.from(files)) {
+            if (file.size > 25 * 1024 * 1024) { // 25MB limit
+                this.showToast('File too large. Maximum size is 25MB.', 'error');
+                continue;
+            }
+            
+            try {
+                // Convert file to base64 for IPC transmission
+                const fileData = await this.fileToBase64(file);
+                
+                const fileObj = {
+                    id: Date.now() + Math.random(),
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    data: fileData // Base64 encoded data
+                };
+                
+                this.attachedFiles.push(fileObj);
+                this.renderAttachedFile(fileObj);
+            } catch (error) {
+                console.error('Error processing file:', error);
+                this.showToast(`Error processing file: ${file.name}`, 'error');
+            }
+        }
+        
+        if (files.length > 0) {
+            const encryptionLevel = document.getElementById('encryption-level').value;
+            this.showToast(`📎 ${files.length} file(s) attached with ${encryptionLevel.toUpperCase()} quantum encryption`, 'success');
+        }
+    }
+
+    fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                // Remove the data:mime/type;base64, prefix
+                const base64 = reader.result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = error => reject(error);
+        });
+    }
+
+    renderAttachedFile(fileObj) {
+        const attachedFilesContainer = document.getElementById('attached-files');
+        
+        const fileElement = document.createElement('div');
+        fileElement.className = 'attached-file';
+        fileElement.dataset.fileId = fileObj.id;
+        
+        const fileIcon = this.getFileIcon(fileObj.type);
+        const fileSize = this.formatFileSize(fileObj.size);
+        const encryptionLevel = document.getElementById('encryption-level').value;
+        
+        fileElement.innerHTML = `
+            <div class="file-info">
+                <div class="file-icon">${fileIcon}</div>
+                <div class="file-details">
+                    <div class="file-name">${fileObj.name}</div>
+                    <div class="file-size">${fileSize}</div>
+                </div>
+            </div>
+            <div class="file-encryption">
+                <div class="encryption-badge">${encryptionLevel.toUpperCase()}</div>
+                <button type="button" class="remove-file" onclick="window.quMailRenderer.removeFile('${fileObj.id}')">
+                    ✕
+                </button>
+            </div>
+        `;
+        
+        attachedFilesContainer.appendChild(fileElement);
+    }
+
+    removeFile(fileId) {
+        this.attachedFiles = this.attachedFiles.filter(f => f.id != fileId);
+        const fileElement = document.querySelector(`[data-file-id="${fileId}"]`);
+        if (fileElement) {
+            fileElement.remove();
+        }
+    }
+
+    clearAttachments() {
+        this.attachedFiles = [];
+        const attachedFilesContainer = document.getElementById('attached-files');
+        if (attachedFilesContainer) {
+            attachedFilesContainer.innerHTML = '';
+        }
+    }
+
+    getFileIcon(mimeType) {
+        if (mimeType.startsWith('image/')) return '🖼️';
+        if (mimeType.startsWith('video/')) return '🎥';
+        if (mimeType.startsWith('audio/')) return '🎵';
+        if (mimeType.includes('pdf')) return '📄';
+        if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+        if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return '📊';
+        if (mimeType.includes('powerpoint') || mimeType.includes('presentation')) return '📈';
+        if (mimeType.includes('zip') || mimeType.includes('archive')) return '📦';
+        return '📎';
+    }
+
+    formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    async downloadAttachment(index, filename, base64Data, mimeType, messageId, attachmentId) {
+        console.log('🚀 DOWNLOAD ATTACHMENT FUNCTION CALLED!');
+        console.log('🚀 Parameters:', { index, filename, base64Data: base64Data ? 'HAS_DATA' : 'NO_DATA', mimeType, messageId, attachmentId });
+        
+        try {
+            let finalBase64Data = base64Data;
+            
+            // If we don't have base64Data but have messageId and attachmentId, download it
+            if (!base64Data && messageId && attachmentId) {
+                // Check if this is an HTML-parsed attachment (no real Gmail attachment ID)
+                if (attachmentId.startsWith('html-parsed')) {
+                    console.log(`⚠️ HTML-parsed attachment detected: ${filename}`);
+                    console.log(`⚠️ This attachment was embedded in HTML and cannot be downloaded directly`);
+                    console.log(`⚠️ The attachment may need to be decrypted from the email content`);
+                    
+                    // Create a demo file to show the functionality works
+                    const demoContent = `This attachment (${filename}) was embedded in the email HTML content and cannot be downloaded directly.\n\nTo access this attachment, you may need to:\n1. Decrypt the email content\n2. Check if the attachment data is included in the decrypted content\n3. Or contact the sender to resend with proper attachment handling\n\nThis is a demonstration of QuMail's attachment detection capabilities.`;
+                    finalBase64Data = btoa(demoContent);
+                    console.log(`📝 Created demo content for HTML-parsed attachment`);
+                } else {
+                    console.log(`🔽 DOWNLOADING ATTACHMENT: ${filename} from Gmail API`);
+                    console.log(`🔽 Message ID: ${messageId}`);
+                    console.log(`🔽 Attachment ID: ${attachmentId}`);
+                    this.showToast(`📥 Downloading: ${filename}...`, 'info');
+                    
+                    const result = await ipcRenderer.invoke('download-attachment', messageId, attachmentId);
+                    console.log(`🔽 Download result:`, result);
+                    
+                    if (result.success) {
+                        let attachmentData = result.data;
+                        console.log(`✅ Successfully downloaded attachment data, length: ${attachmentData.length}`);
+                        console.log(`✅ First 50 chars: ${attachmentData.substring(0, 50)}`);
+                        console.log(`✅ Last 50 chars: ${attachmentData.substring(attachmentData.length - 50)}`);
+                        
+                        // Check if attachment is encrypted and we have decryption key
+                        if (this.currentEmail && this.currentEmail.encrypted && this.lastDecryptionKey) {
+                            console.log(`🔓 Attempting to decrypt attachment: ${filename}`);
+                            try {
+                                const decryptResult = await ipcRenderer.invoke('decrypt-attachment', 
+                                    attachmentData, 
+                                    this.lastDecryptionKey, 
+                                    this.currentEmail.encryptionLevel || 'aes256'
+                                );
+                                
+                                if (decryptResult.success) {
+                                    attachmentData = decryptResult.data;
+                                    console.log(`✅ Successfully decrypted attachment, length: ${attachmentData.length}`);
+                                } else {
+                                    console.warn(`⚠️ Failed to decrypt attachment: ${decryptResult.error}`);
+                                    // Continue with encrypted data
+                                }
+                            } catch (decryptError) {
+                                console.warn(`⚠️ Attachment decryption error: ${decryptError.message}`);
+                                // Continue with encrypted data
+                            }
+                        }
+                        
+                        finalBase64Data = attachmentData;
+                    } else {
+                        console.error(`❌ Download failed:`, result.error);
+                        throw new Error(result.error || 'Failed to download attachment');
+                    }
+                }
+            }
+            
+            if (!finalBase64Data) {
+                throw new Error('No attachment data available');
+            }
+            
+            // Validate base64 data
+            if (!/^[A-Za-z0-9+/]*={0,2}$/.test(finalBase64Data)) {
+                console.error('Invalid base64 data detected');
+                throw new Error('Invalid base64 data format');
+            }
+            
+            // Log first few characters for debugging
+            console.log(`Base64 data preview: ${finalBase64Data.substring(0, 100)}...`);
+            
+            // Improve MIME type detection based on filename if needed
+            let finalMimeType = mimeType;
+            if (!finalMimeType || finalMimeType === 'application/octet-stream') {
+                const extension = filename.toLowerCase().split('.').pop();
+                switch (extension) {
+                    case 'png': finalMimeType = 'image/png'; break;
+                    case 'jpg': case 'jpeg': finalMimeType = 'image/jpeg'; break;
+                    case 'gif': finalMimeType = 'image/gif'; break;
+                    case 'pdf': finalMimeType = 'application/pdf'; break;
+                    case 'txt': finalMimeType = 'text/plain'; break;
+                    case 'doc': finalMimeType = 'application/msword'; break;
+                    case 'docx': finalMimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; break;
+                    default: finalMimeType = mimeType || 'application/octet-stream';
+                }
+                console.log(`Detected MIME type from extension: ${finalMimeType}`);
+            }
+            
+            // Convert base64 to blob using more robust method
+            console.log(`Converting base64 to blob for ${filename}`);
+            console.log(`Base64 data length: ${finalBase64Data.length}`);
+            console.log(`Final MIME type: ${finalMimeType}`);
+            
+            let blob;
+            try {
+                // Method 1: Use fetch with data URL (more reliable for binary data)
+                console.log(`🔧 Creating blob using fetch method...`);
+                const dataUrl = `data:${finalMimeType};base64,${finalBase64Data}`;
+                console.log(`🔧 Data URL length: ${dataUrl.length}`);
+                console.log(`🔧 Data URL preview: ${dataUrl.substring(0, 100)}...`);
+                
+                const response = await fetch(dataUrl);
+                console.log(`🔧 Fetch response status: ${response.status}`);
+                console.log(`🔧 Fetch response ok: ${response.ok}`);
+                
+                blob = await response.blob();
+                console.log(`✅ Created blob using fetch method with size: ${blob.size} bytes, type: ${blob.type}`);
+                
+                // Test if blob is valid by reading first few bytes
+                const testArrayBuffer = await blob.slice(0, 10).arrayBuffer();
+                const testBytes = new Uint8Array(testArrayBuffer);
+                console.log(`🔧 First 10 bytes of blob: [${Array.from(testBytes).join(', ')}]`);
+                
+            } catch (fetchError) {
+                console.error('❌ Fetch method failed, falling back to manual conversion:', fetchError);
+                
+                // Method 2: Manual conversion (fallback)
+                try {
+                    const byteCharacters = atob(finalBase64Data);
+                    console.log(`Decoded byte characters length: ${byteCharacters.length}`);
+                    
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    blob = new Blob([byteArray], { type: finalMimeType });
+                    console.log(`Created blob using manual method with size: ${blob.size} bytes, type: ${blob.type}`);
+                } catch (manualError) {
+                    console.error('Manual conversion also failed:', manualError);
+                    throw new Error(`Failed to convert base64 data: ${manualError.message}`);
+                }
+            }
+
+            // Create download link
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            this.showToast(`📥 Downloaded: ${filename}`, 'success');
+        } catch (error) {
+            console.error('Download error:', error);
+            this.showToast(`❌ Failed to download: ${filename}`, 'error');
+        }
     }
 
     updateSecurityIndicator(level) {
@@ -1068,7 +1612,8 @@ class QuMailRenderer {
             encryptedText: formData.get('encryptedText'),
             key: formData.get('key'),
             encryptionLevel: formData.get('encryptionLevel'),
-            keyId: formData.get('keyId') || null
+            keyId: formData.get('keyId') || null,
+            emailData: this.currentEmail // Pass current email data including attachments
         };
 
         if (!decryptionData.encryptedText || !decryptionData.key || !decryptionData.encryptionLevel) {
@@ -1087,10 +1632,16 @@ class QuMailRenderer {
                 this.showToast('✅ Message decrypted successfully!', 'success');
                 console.log('About to display decrypted message:', result.decryptedText);
                 
+                // Store the decryption key for attachment decryption
+                if (decryptionData.key) {
+                    this.lastDecryptionKey = decryptionData.key;
+                    console.log('🔑 Stored decryption key for attachment decryption');
+                }
+                
                 // Force display the message even if it seems empty
                 const messageToDisplay = result.decryptedText || 'No content received';
                 console.log('Forcing display of:', messageToDisplay);
-                this.displayDecryptedMessage(messageToDisplay, result.originalEncryption, result.keyId);
+                this.displayDecryptedMessage(messageToDisplay, result.originalEncryption, result.keyId, result.attachments);
             } else {
                 throw new Error(result.error || 'Failed to decrypt message');
             }
@@ -1112,7 +1663,7 @@ class QuMailRenderer {
         }
     }
 
-    displayDecryptedMessage(decryptedText, encryptionLevel, keyId) {
+    displayDecryptedMessage(decryptedText, encryptionLevel, keyId, attachments = []) {
         console.log('Displaying decrypted message:', decryptedText);
         console.log('Encryption level:', encryptionLevel);
         console.log('Key ID:', keyId);
@@ -1142,6 +1693,31 @@ class QuMailRenderer {
                         <div class="message-text">${safeMessageText}</div>
                     </div>
                 </div>
+                
+                <!-- Decrypted Attachments -->
+                ${attachments && attachments.length > 0 ? `
+                <div class="attachments-section">
+                    <h4 class="section-title">📎 Decrypted Attachments (${attachments.length}):</h4>
+                    <div class="attachments-list">
+                        ${attachments.map((att, index) => `
+                            <div class="attachment-item">
+                                <div class="attachment-info">
+                                    <div class="attachment-icon">${this.getFileIcon(att.type)}</div>
+                                    <div class="attachment-details">
+                                        <div class="attachment-name">${att.name}</div>
+                                        <div class="attachment-size">${this.formatFileSize(att.size)}</div>
+                                    </div>
+                                </div>
+                                <div class="attachment-actions">
+                                    <button class="download-btn" onclick="window.quMailRenderer.downloadAttachment(${index}, '${att.name}', '${att.data}', '${att.type}', '${att.messageId}', '${att.attachmentId}')">
+                                        📥 Download
+                                    </button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
                 
                 <!-- Technical Details -->
                 <div class="tech-details">

@@ -320,13 +320,25 @@ class EmailService {
     let attachments = [];
 
     // Only parse body if we have full format
+    console.log(`[EmailService] Parsing email ${messageId}, payload structure:`, messageData.payload);
+    console.log(`[EmailService] Payload parts:`, messageData.payload?.parts);
+    
     if (messageData.payload?.parts) {
-      messageData.payload.parts.forEach(part => {
+      console.log(`[EmailService] Found ${messageData.payload.parts.length} parts in email`);
+      messageData.payload.parts.forEach((part, index) => {
+        console.log(`[EmailService] Part ${index}:`, {
+          mimeType: part.mimeType,
+          filename: part.filename,
+          hasBody: !!part.body,
+          hasAttachmentId: !!part.body?.attachmentId,
+          bodySize: part.body?.size
+        });
         if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
           if (part.body?.data) {
             body += Buffer.from(part.body.data, 'base64').toString('utf8');
           }
         } else if (part.filename && part.body?.attachmentId) {
+          console.log(`[EmailService] Found attachment: ${part.filename}, MIME: ${part.mimeType}, Size: ${part.body.size}, ID: ${part.body.attachmentId}`);
           attachments.push({
             filename: part.filename,
             mimeType: part.mimeType,
@@ -400,31 +412,89 @@ class EmailService {
       
       // For encrypted emails, pass the original encrypted JSON to generateHtmlBody
       // Don't format it here - let generateHtmlBody handle the formatting
-      const htmlBody = this.generateHtmlBody(body, encrypted, encryptionLevel, subject);
+      const htmlBody = this.generateHtmlBody(body, encrypted, encryptionLevel, subject, attachments);
       
-      let emailContent = [
-        `To: ${to}`,
-        `Subject: ${emailSubject}`,
-        'Content-Type: text/html; charset=utf-8',
-        'MIME-Version: 1.0',
-        ''
-      ];
+      // Check if we have attachments to send as actual Gmail attachments
+      let emailContent, encodedEmail;
+      
+      if (attachments && attachments.length > 0) {
+        console.log(`[EmailService] Preparing email with ${attachments.length} attachments`);
+        // Create multipart email with attachments
+        const boundary = `boundary_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        emailContent = [
+          `To: ${to}`,
+          `Subject: ${emailSubject}`,
+          `Content-Type: multipart/mixed; boundary="${boundary}"`,
+          'MIME-Version: 1.0',
+          ''
+        ];
 
-      if (encrypted) {
-        emailContent.splice(3, 0, 
-          `X-QuMail-Encryption: ${JSON.stringify({
-            level: encryptionLevel,
-            keyId: keyId,
-            timestamp: new Date().toISOString()
-          })}`,
-          'X-QuMail-Version: 1.0.0'
+        if (encrypted) {
+          emailContent.splice(3, 0, 
+            `X-QuMail-Encryption: ${JSON.stringify({
+              level: encryptionLevel,
+              keyId: keyId,
+              timestamp: new Date().toISOString()
+            })}`,
+            'X-QuMail-Version: 1.0.0'
+          );
+        }
+
+        // Add HTML body part
+        emailContent.push(
+          `--${boundary}`,
+          'Content-Type: text/html; charset=utf-8',
+          'Content-Transfer-Encoding: 7bit',
+          '',
+          htmlBody,
+          ''
         );
-      }
 
-      emailContent.push(htmlBody);
+        // Add each attachment
+        for (const attachment of attachments) {
+          console.log(`[EmailService] Adding attachment: ${attachment.name}, size: ${attachment.size}`);
+          emailContent.push(
+            `--${boundary}`,
+            `Content-Type: ${attachment.type}; name="${attachment.name}"`,
+            `Content-Disposition: attachment; filename="${attachment.name}"`,
+            'Content-Transfer-Encoding: base64',
+            '',
+            attachment.data, // Base64 encoded file data
+            ''
+          );
+        }
+
+        // Close boundary
+        emailContent.push(`--${boundary}--`);
+        
+      } else {
+        // Simple email without attachments
+        emailContent = [
+          `To: ${to}`,
+          `Subject: ${emailSubject}`,
+          'Content-Type: text/html; charset=utf-8',
+          'MIME-Version: 1.0',
+          ''
+        ];
+
+        if (encrypted) {
+          emailContent.splice(3, 0, 
+            `X-QuMail-Encryption: ${JSON.stringify({
+              level: encryptionLevel,
+              keyId: keyId,
+              timestamp: new Date().toISOString()
+            })}`,
+            'X-QuMail-Version: 1.0.0'
+          );
+        }
+
+        emailContent.push(htmlBody);
+      }
       
       const email = emailContent.join('\r\n');
-      const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      console.log(`[EmailService] Final email size: ${email.length} characters`);
+      encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
       console.log('[EmailService] Sending email via Gmail API...');
       const result = await this.gmail.users.messages.send({
@@ -471,7 +541,7 @@ class EmailService {
     }
   }
 
-  generateHtmlBody(textBody, encrypted, encryptionLevel, encryptedSubject = null) {
+  generateHtmlBody(textBody, encrypted, encryptionLevel, encryptedSubject = null, attachments = []) {
     const encryptionBadge = encrypted ? 
       `<div style="background: #4CAF50; color: white; padding: 12px; border-radius: 6px; margin-bottom: 20px; font-size: 14px; font-weight: bold;">
         🔒 Quantum-Safe Encrypted (${encryptionLevel?.toUpperCase()}) - QuMail
@@ -513,6 +583,19 @@ class EmailService {
                 ${textBody}
               </div>
             </div>
+            ${attachments.length > 0 ? `
+            <div style="margin-top: 20px; padding: 15px; background: #fff3e0; border-radius: 6px; border: 1px solid #ff9800;">
+              <h4 style="margin: 0 0 10px 0; color: #333; font-size: 14px;">📎 Quantum-Encrypted Attachments (${attachments.length}):</h4>
+              ${attachments.map(att => `
+                <div style="background: #fff; padding: 8px; margin: 5px 0; border-radius: 4px; border: 1px solid #ff9800; font-size: 12px;">
+                  <strong>${att.name}</strong> (${this.formatFileSize(att.size)}) - ${encryptionLevel?.toUpperCase()} Encrypted
+                </div>
+              `).join('')}
+              <p style="margin: 10px 0 0 0; font-size: 11px; color: #666; font-style: italic;">
+                Attachments are quantum-encrypted and can only be decrypted using QuMail.
+              </p>
+            </div>
+            ` : ''}
             <div style="margin-top: 20px; padding: 12px; background: #f5f5f5; border-radius: 4px; font-size: 11px; color: #666;">
               This message was encrypted using QuMail quantum-safe encryption technology.
             </div>
@@ -534,6 +617,14 @@ class EmailService {
           : ''}
       </div>
     `;
+  }
+
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
   async getUserProfile() {
@@ -577,6 +668,55 @@ class EmailService {
     const tokenPath = path.join(__dirname, '..', 'config', 'gmail_tokens.json');
     if (fs.existsSync(tokenPath)) {
       fs.unlinkSync(tokenPath);
+    }
+  }
+
+  async downloadAttachment(messageId, attachmentId) {
+    if (!this.isAuthenticated()) {
+      throw new Error('Not authenticated');
+    }
+
+    try {
+      console.log(`[EmailService] Downloading attachment ${attachmentId} from message ${messageId}`);
+      
+      const response = await this.gmail.users.messages.attachments.get({
+        userId: 'me',
+        messageId: messageId,
+        id: attachmentId
+      });
+
+      if (response.data && response.data.data) {
+        console.log(`[EmailService] Raw response data length: ${response.data.data.length}`);
+        console.log(`[EmailService] Raw response size: ${response.data.size}`);
+        console.log(`[EmailService] First 100 chars of raw data: ${response.data.data.substring(0, 100)}`);
+        
+        // Gmail API returns base64url encoded data, convert to base64
+        let base64Data = response.data.data.replace(/-/g, '+').replace(/_/g, '/');
+        
+        // Add proper padding if needed
+        while (base64Data.length % 4) {
+          base64Data += '=';
+        }
+        
+        console.log(`[EmailService] Successfully downloaded attachment, size: ${response.data.size} bytes`);
+        console.log(`[EmailService] Base64 data length: ${base64Data.length}`);
+        console.log(`[EmailService] First 100 chars of converted base64: ${base64Data.substring(0, 100)}`);
+        
+        // Test if the base64 is valid by trying to decode a small portion
+        try {
+          const testDecode = Buffer.from(base64Data.substring(0, Math.min(100, base64Data.length)), 'base64');
+          console.log(`[EmailService] Base64 test decode successful, decoded ${testDecode.length} bytes`);
+        } catch (testError) {
+          console.error(`[EmailService] Base64 test decode failed:`, testError);
+        }
+        
+        return base64Data;
+      } else {
+        throw new Error('No attachment data received');
+      }
+    } catch (error) {
+      console.error('[EmailService] Error downloading attachment:', error);
+      throw error;
     }
   }
 

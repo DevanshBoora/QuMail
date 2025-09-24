@@ -232,6 +232,26 @@
                                         <textarea id="compose-body" name="body" required placeholder="Type your encrypted message here..."></textarea>
                                     </div>
                                 </div>
+                                
+                                <div class="form-row full">
+                                    <div class="input-group">
+                                        <label>📎 Quantum-Encrypted Attachments</label>
+                                        <div class="attachment-area">
+                                            <input type="file" id="file-input" multiple accept="*/*" style="display: none;">
+                                            <div class="attachment-drop-zone" id="attachment-drop-zone">
+                                                <div class="drop-zone-content">
+                                                    <div class="drop-zone-icon">📎</div>
+                                                    <div class="drop-zone-text">
+                                                        <strong>Drag & drop files here</strong><br>
+                                                        or <button type="button" class="browse-btn" id="browse-files">browse files</button>
+                                                    </div>
+                                                    <div class="drop-zone-info">All attachments will be quantum-encrypted</div>
+                                                </div>
+                                            </div>
+                                            <div class="attached-files" id="attached-files"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </form>
                     </div>
