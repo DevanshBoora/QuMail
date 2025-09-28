@@ -3235,3 +3235,91 @@ input:checked + .toggle-slider:before {
     box-shadow: var(--glow-success);
     transform: translateY(-1px);
 }
+
+/* Smart Encryption Suggestions */
+.suggestion-box {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.05));
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    margin-top: 0.5rem;
+    animation: slideIn 0.3s ease-out;
+}
+
+.suggestion-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.suggestion-icon {
+    font-size: 1.2rem;
+}
+
+.suggestion-title {
+    color: var(--success-color);
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.suggestion-content {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+}
+
+.suggestion-reason {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    font-style: italic;
+}
+
+.suggestion-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.suggestion-btn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+}
+
+.suggestion-btn.apply {
+    background: var(--success-gradient);
+    color: white;
+}
+
+.suggestion-btn.apply:hover {
+    box-shadow: var(--glow-success);
+    transform: translateY(-1px);
+}
+
+.suggestion-btn.dismiss {
+    background: rgba(107, 114, 128, 0.2);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.suggestion-btn.dismiss:hover {
+    background: rgba(107, 114, 128, 0.3);
+    color: var(--text-secondary);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

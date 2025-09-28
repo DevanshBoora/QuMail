@@ -300,8 +300,22 @@ ipcMain.handle('send-email', async (event, emailData) => {
       console.log('[Main] ENCRYPTING EMAIL:');
       console.log('[Main] Original subject:', subject);
       console.log('[Main] Original body:', body);
+      console.log('[Main] Quantum key object:', quantumKey);
       console.log('[Main] Quantum key length:', quantumKey.key ? quantumKey.key.length : 'undefined');
       console.log('[Main] Quantum key preview:', quantumKey.key ? quantumKey.key.substring(0, 20) + '...' : 'undefined');
+      
+      // Validate quantum key
+      if (!quantumKey || !quantumKey.key) {
+        throw new Error('Failed to obtain quantum key');
+      }
+      
+      if (quantumKey.key.length < 64) {
+        console.warn('[Main] Quantum key too short, generating fallback key...');
+        // Generate a proper 64-character hex key as fallback
+        const crypto = require('crypto');
+        quantumKey.key = crypto.randomBytes(32).toString('hex');
+        console.log('[Main] Generated fallback key length:', quantumKey.key.length);
+      }
       
       encryptedSubject = await encryptionEngine.encrypt(subject, quantumKey.key, encryptionLevel);
       encryptedBody = await encryptionEngine.encrypt(body, quantumKey.key, encryptionLevel);
@@ -432,43 +446,17 @@ ipcMain.handle('decrypt-message', async (event, decryptionData) => {
     console.log('[Main] Decrypted text type:', typeof decryptedText);
     console.log('[Main] Decrypted text length:', decryptedText ? decryptedText.length : 'null/undefined');
     
-    // Extract and decrypt attachments from email data
+    console.log('[Main] Decrypting message with key:', key);
+    console.log('[Main] Email data structure:', {
+      hasAttachments: !!(emailData && emailData.attachments),
+      attachmentCount: emailData?.attachments?.length || 0,
+      hasBody: !!(emailData && emailData.body),
+      bodyLength: emailData?.body?.length || 0
+    });
+    
     let decryptedAttachments = [];
     
-    // For demo purposes, we'll create mock attachments if the email was sent with attachments
-    // In a real implementation, attachments would be encrypted and stored separately
-    if (emailData && emailData.body) {
-      // Look for attachment information in the email body
-      const attachmentMatches = emailData.body.match(/📎 Quantum-Encrypted Attachments \((\d+)\):/);
-      if (attachmentMatches) {
-        const attachmentCount = parseInt(attachmentMatches[1]);
-        console.log('[Main] Found', attachmentCount, 'attachments mentioned in email');
-        
-        // Extract attachment info from HTML
-        const attachmentRegex = /<strong>([^<]+)<\/strong> \(([^)]+)\) - ([^<]+) Encrypted/g;
-        let match;
-        while ((match = attachmentRegex.exec(emailData.body)) !== null) {
-          const [, filename, filesize, encryption] = match;
-          
-          // Create a demo file for download
-          const demoContent = `This is a decrypted attachment: ${filename}\n\nOriginal encryption: ${encryption}\nDecrypted using QuMail quantum-safe technology.\n\nThis is a demo file to show attachment decryption functionality.`;
-          const base64Content = Buffer.from(demoContent).toString('base64');
-          
-          decryptedAttachments.push({
-            name: filename,
-            size: demoContent.length,
-            type: filename.endsWith('.pdf') ? 'application/pdf' : 
-                  filename.endsWith('.txt') ? 'text/plain' :
-                  filename.endsWith('.doc') ? 'application/msword' :
-                  filename.endsWith('.jpg') || filename.endsWith('.png') ? 'image/jpeg' :
-                  'application/octet-stream',
-            data: base64Content
-          });
-        }
-      }
-    }
-    
-    // Also check for actual attachments in the email object
+    // Check for actual attachments in the email object FIRST (prioritize real attachments)
     if (emailData && emailData.attachments && emailData.attachments.length > 0) {
       console.log('[Main] Found', emailData.attachments.length, 'actual attachments to decrypt');
       
@@ -519,6 +507,47 @@ ipcMain.handle('decrypt-message', async (event, decryptionData) => {
         }
       }
     }
+    
+    // FALLBACK: If no real attachments found, try HTML parsing (for old emails)
+    if (decryptedAttachments.length === 0 && emailData && emailData.body) {
+      console.log('[Main] No real attachments found, checking HTML body for attachment references...');
+      // Look for attachment information in the email body
+      const attachmentMatches = emailData.body.match(/📎 Quantum-Encrypted Attachments \((\d+)\):/);
+      if (attachmentMatches) {
+        const attachmentCount = parseInt(attachmentMatches[1]);
+        console.log('[Main] Found', attachmentCount, 'attachments mentioned in HTML body');
+        
+        // Extract attachment info from HTML
+        const attachmentRegex = /<strong>([^<]+)<\/strong> \(([^)]+)\) - ([^<]+) Encrypted/g;
+        let match;
+        while ((match = attachmentRegex.exec(emailData.body)) !== null) {
+          const [, filename, filesize, encryption] = match;
+          
+          // Create a demo file for download (HTML-embedded attachments don't have real data)
+          const demoContent = `This is a decrypted attachment: ${filename}\n\nOriginal encryption: ${encryption}\nDecrypted using QuMail quantum-safe technology.\n\nThis is a demo file to show attachment decryption functionality.`;
+          const base64Content = Buffer.from(demoContent).toString('base64');
+          
+          decryptedAttachments.push({
+            name: filename,
+            size: demoContent.length,
+            type: filename.endsWith('.pdf') ? 'application/pdf' : 
+                  filename.endsWith('.txt') ? 'text/plain' :
+                  filename.endsWith('.doc') ? 'application/msword' :
+                  filename.endsWith('.jpg') || filename.endsWith('.png') ? 'image/jpeg' :
+                  'application/octet-stream',
+            data: base64Content,
+            isDemo: true // Flag to indicate this is demo content
+          });
+        }
+      }
+    }
+    
+    console.log('[Main] Final attachment count:', decryptedAttachments.length);
+    console.log('[Main] Attachments:', decryptedAttachments.map(att => ({ 
+      name: att.name, 
+      size: att.size, 
+      isDemo: att.isDemo || false 
+    })));
     
     return {
       success: true,

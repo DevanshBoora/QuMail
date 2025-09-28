@@ -97,6 +97,52 @@ class QuMailRenderer {
             this.clearComposeForm();
         });
 
+        // Smart encryption suggestions
+        try {
+            const subjectInput = document.getElementById('compose-subject');
+            const bodyInput = document.getElementById('compose-body');
+            const applyBtn = document.getElementById('apply-suggestion');
+            const dismissBtn = document.getElementById('dismiss-suggestion');
+            
+            if (subjectInput && bodyInput) {
+                console.log('[Renderer] Setting up smart encryption suggestions...');
+                subjectInput.addEventListener('input', () => {
+                    console.log('[Renderer] Subject input detected, analyzing...');
+                    this.analyzeEmailContent();
+                });
+                bodyInput.addEventListener('input', () => {
+                    console.log('[Renderer] Body input detected, analyzing...');
+                    this.analyzeEmailContent();
+                });
+                
+                if (applyBtn) {
+                    applyBtn.addEventListener('click', () => {
+                        this.applySuggestion();
+                    });
+                }
+                
+                if (dismissBtn) {
+                    dismissBtn.addEventListener('click', () => {
+                        this.dismissSuggestion();
+                    });
+                }
+                
+                console.log('[Renderer] Smart encryption suggestions initialized successfully');
+                
+                // Test the suggestions immediately
+                setTimeout(() => {
+                    console.log('[Renderer] Testing suggestions with sample content...');
+                    subjectInput.value = 'bank account information';
+                    bodyInput.value = 'confidential financial data';
+                    this.analyzeEmailContent();
+                }, 2000);
+            } else {
+                console.error('[Renderer] Could not find compose form elements for suggestions');
+            }
+        } catch (error) {
+            console.error('[Renderer] Error setting up smart encryption suggestions:', error);
+        }
+
         // Security level indicator
         document.getElementById('encryption-level').addEventListener('change', (e) => {
             this.updateSecurityIndicator(e.target.value);
@@ -457,8 +503,8 @@ class QuMailRenderer {
             document.getElementById('email-detail-from-text').textContent = email.from || 'Unknown Sender';
             document.getElementById('email-detail-date-text').textContent = this.formatFullDate(email.date) || 'Unknown Date';
             
-            // Get full email content if we only have snippet
-            if (email.snippet && !email.body) {
+            // Get full email content if we only have snippet OR if it's an encrypted email (to get attachment data)
+            if ((email.snippet && !email.body) || email.encrypted) {
                 this.fetchFullEmailContent(email.id);
             } else {
                 document.getElementById('email-detail-body').innerHTML = this.formatEmailBody(email.body || email.snippet || 'No content available');
@@ -637,6 +683,8 @@ class QuMailRenderer {
                 
                 // Re-run attachment detection with full email body
                 console.log('🔄 Re-running attachment detection with full email body...');
+                console.log('🔄 Full email body length:', fullEmail.body.length);
+                console.log('🔄 Full email body contains attachment section:', fullEmail.body.includes('📎 Quantum-Encrypted Attachments'));
                 this.displayEmailAttachments(this.currentEmail);
                 
                 // Also update attachments display with full email data
@@ -2020,6 +2068,304 @@ ID: ${decryptionInfo.keyId}</textarea>
         const div = document.createElement('div');
         div.innerHTML = text;
         return div.textContent || div.innerText || '';
+    }
+
+    // Smart Encryption Suggestion System
+    analyzeEmailContent() {
+        console.log('[Suggestions] analyzeEmailContent called');
+        const subjectEl = document.getElementById('compose-subject');
+        const bodyEl = document.getElementById('compose-body');
+        
+        if (!subjectEl || !bodyEl) {
+            console.error('[Suggestions] Could not find compose form elements');
+            return;
+        }
+        
+        const subject = subjectEl.value;
+        const body = bodyEl.value;
+        const attachments = this.attachments || [];
+        
+        console.log('[Suggestions] Content:', { subject, body: body.substring(0, 50) + '...', attachmentCount: attachments.length });
+        
+        // Debounce the analysis to avoid too frequent calls
+        clearTimeout(this.analysisTimeout);
+        this.analysisTimeout = setTimeout(() => {
+            console.log('[Suggestions] Performing analysis...');
+            this.performContentAnalysis(subject, body, attachments);
+        }, 500);
+    }
+
+    performContentAnalysis(subject, body, attachments) {
+        console.log('[Suggestions] performContentAnalysis called');
+        const analysis = this.analyzeSecurityNeeds(subject, body, attachments);
+        const currentLevel = document.getElementById('encryption-level').value;
+        
+        console.log('[Suggestions] Analysis result:', {
+            recommendedLevel: analysis.recommendedLevel,
+            currentLevel: currentLevel,
+            confidence: analysis.confidence,
+            reasons: analysis.reasons,
+            riskLevel: analysis.riskLevel
+        });
+        
+        if (analysis.recommendedLevel !== currentLevel && analysis.confidence > 0.3) {
+            console.log('[Suggestions] Showing suggestion');
+            this.showEncryptionSuggestion(analysis);
+        } else {
+            console.log('[Suggestions] Hiding suggestion - no change needed or low confidence');
+            this.hideSuggestion();
+        }
+    }
+
+    analyzeSecurityNeeds(subject, body, attachments) {
+        const content = (subject + ' ' + body).toLowerCase();
+        let score = 0;
+        let reasons = [];
+        let recommendedLevel = 'aes256';
+
+        // Financial keywords - Comprehensive banking, payment, and financial data
+        const financialKeywords = [
+            'bank', 'banking', 'credit card', 'debit card', 'payment', 'invoice', 'salary', 'financial', 'money', 'transaction', 'account number', 'ssn', 'social security',
+            'routing number', 'iban', 'swift code', 'wire transfer', 'bitcoin', 'cryptocurrency', 'wallet', 'tax', 'irs', 'audit', 'budget', 'loan', 'mortgage', 'investment',
+            'portfolio', 'stock', 'bond', 'dividend', 'interest rate', 'credit score', 'debt', 'bankruptcy', 'insurance', 'premium', 'claim', 'beneficiary', 'pension',
+            'retirement', '401k', 'ira', 'payroll', 'w2', 'w4', '1099', 'receipt', 'expense', 'reimbursement', 'cash flow', 'revenue', 'profit', 'loss', 'balance sheet'
+        ];
+        if (financialKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.8;
+            reasons.push('Contains financial information');
+            recommendedLevel = 'kyber';
+        }
+
+        // Personal information - PII, credentials, and sensitive personal data
+        const personalKeywords = [
+            'password', 'confidential', 'private', 'personal', 'address', 'phone number', 'date of birth', 'medical', 'health', 'ssn', 'social security number',
+            'driver license', 'passport', 'visa', 'green card', 'birth certificate', 'maiden name', 'security question', 'pin', 'access code', 'login', 'username',
+            'email password', 'wifi password', 'secret', 'sensitive', 'restricted', 'family', 'relationship', 'divorce', 'custody', 'adoption', 'inheritance',
+            'will', 'testament', 'emergency contact', 'next of kin', 'biometric', 'fingerprint', 'dna', 'genetic', 'ancestry', 'background check', 'criminal record',
+            'credit report', 'identity', 'identity theft', 'fraud', 'scam', 'phishing', 'stalking', 'harassment', 'domestic', 'abuse', 'victim', 'witness'
+        ];
+        if (personalKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.7;
+            reasons.push('Contains personal information');
+            if (recommendedLevel === 'aes256') recommendedLevel = 'kyber';
+        }
+
+        // Legal/Business sensitive - Contracts, IP, corporate secrets, litigation
+        const legalKeywords = [
+            'contract', 'agreement', 'legal', 'lawsuit', 'settlement', 'nda', 'proprietary', 'trade secret', 'merger', 'acquisition', 'non-disclosure',
+            'confidentiality agreement', 'licensing', 'patent', 'trademark', 'copyright', 'intellectual property', 'ip', 'litigation', 'arbitration', 'mediation',
+            'court', 'judge', 'jury', 'attorney', 'lawyer', 'counsel', 'legal advice', 'subpoena', 'deposition', 'discovery', 'evidence', 'testimony',
+            'plea', 'verdict', 'damages', 'injunction', 'restraining order', 'cease and desist', 'compliance', 'violation', 'breach', 'default',
+            'due diligence', 'corporate governance', 'board meeting', 'shareholder', 'stakeholder', 'fiduciary', 'insider trading', 'sec filing',
+            'regulatory', 'antitrust', 'monopoly', 'cartel', 'price fixing', 'bid rigging', 'embezzlement', 'fraud', 'money laundering', 'bribery',
+            'corruption', 'whistleblower', 'ethics violation', 'conflict of interest', 'insider information', 'material non-public', 'tender offer'
+        ];
+        if (legalKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.9;
+            reasons.push('Contains legal or business-sensitive content');
+            recommendedLevel = 'otp';
+        }
+
+        // Government/Security - Military, intelligence, classified information
+        const securityKeywords = [
+            'classified', 'top secret', 'government', 'security clearance', 'national security', 'intelligence', 'secret', 'confidential', 'restricted',
+            'military', 'defense', 'pentagon', 'cia', 'fbi', 'nsa', 'homeland security', 'dhs', 'state department', 'diplomatic', 'embassy', 'consulate',
+            'foreign affairs', 'espionage', 'spy', 'surveillance', 'wiretap', 'covert', 'undercover', 'black ops', 'special forces', 'navy seals',
+            'delta force', 'green beret', 'ranger', 'marine', 'army', 'navy', 'air force', 'coast guard', 'national guard', 'reserve',
+            'weapons', 'nuclear', 'chemical', 'biological', 'warfare', 'missile', 'drone', 'satellite', 'radar', 'sonar', 'encryption key',
+            'cyber warfare', 'hacking', 'malware', 'virus', 'trojan', 'backdoor', 'zero day', 'exploit', 'vulnerability', 'breach',
+            'terrorism', 'terrorist', 'threat', 'attack', 'bombing', 'assassination', 'kidnapping', 'hostage', 'ransom', 'extortion',
+            'sanctions', 'embargo', 'export control', 'itar', 'munitions list', 'dual use', 'proliferation', 'wmd', 'mass destruction'
+        ];
+        if (securityKeywords.some(keyword => content.includes(keyword))) {
+            score += 1.0;
+            reasons.push('Contains security-sensitive information');
+            recommendedLevel = 'otp';
+        }
+
+        // Medical information - HIPAA protected health information
+        const medicalKeywords = [
+            'diagnosis', 'treatment', 'medical record', 'patient', 'hipaa', 'prescription', 'therapy', 'doctor', 'physician', 'nurse', 'hospital',
+            'clinic', 'surgery', 'operation', 'procedure', 'medication', 'drug', 'pharmaceutical', 'vaccine', 'immunization', 'allergy',
+            'symptom', 'condition', 'disease', 'illness', 'infection', 'virus', 'bacteria', 'cancer', 'tumor', 'malignant', 'benign',
+            'chemotherapy', 'radiation', 'biopsy', 'lab results', 'blood test', 'urine test', 'x-ray', 'mri', 'ct scan', 'ultrasound',
+            'ekg', 'ecg', 'eeg', 'blood pressure', 'heart rate', 'pulse', 'temperature', 'weight', 'height', 'bmi', 'cholesterol',
+            'glucose', 'diabetes', 'insulin', 'hypertension', 'depression', 'anxiety', 'ptsd', 'mental health', 'psychiatric', 'psychology',
+            'counseling', 'rehab', 'rehabilitation', 'physical therapy', 'occupational therapy', 'speech therapy', 'addiction', 'substance abuse',
+            'medical history', 'family history', 'genetic testing', 'dna test', 'blood type', 'organ donor', 'transplant', 'prosthetic',
+            'disability', 'handicap', 'wheelchair', 'crutches', 'hearing aid', 'pacemaker', 'implant', 'medical device', 'life support'
+        ];
+        if (medicalKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.8;
+            reasons.push('Contains medical information (HIPAA protected)');
+            recommendedLevel = 'kyber';
+        }
+
+        // Attachment analysis - Enhanced file type detection
+        if (attachments.length > 0) {
+            const sensitiveExtensions = [
+                '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.7z', '.tar', '.gz',
+                '.p7s', '.p7m', '.pfx', '.p12', '.key', '.pem', '.crt', '.cer', '.der', '.jks', '.keystore',
+                '.sql', '.db', '.sqlite', '.mdb', '.accdb', '.csv', '.xml', '.json', '.config', '.ini',
+                '.backup', '.bak', '.old', '.tmp', '.log', '.dump', '.dmp', '.iso', '.img', '.vmdk'
+            ];
+            const hasSensitiveFiles = attachments.some(att => 
+                sensitiveExtensions.some(ext => att.name.toLowerCase().endsWith(ext))
+            );
+            
+            if (hasSensitiveFiles) {
+                score += 0.3;
+                reasons.push('Contains document attachments');
+            }
+
+            if (attachments.length > 3) {
+                score += 0.2;
+                reasons.push('Multiple attachments detected');
+            }
+
+            // Check for highly sensitive file patterns
+            const criticalFiles = attachments.some(att => {
+                const name = att.name.toLowerCase();
+                return name.includes('password') || name.includes('key') || name.includes('secret') || 
+                       name.includes('confidential') || name.includes('private') || name.includes('backup') ||
+                       name.includes('database') || name.includes('config') || name.includes('credential');
+            });
+            
+            if (criticalFiles) {
+                score += 0.5;
+                reasons.push('Contains potentially sensitive files');
+                if (recommendedLevel === 'aes256') recommendedLevel = 'kyber';
+            }
+        }
+
+        // Email domain analysis - Expanded business and government domains
+        const recipient = document.getElementById('compose-to').value;
+        if (recipient) {
+            const domain = recipient.split('@')[1];
+            const businessDomains = [
+                '.gov', '.mil', '.edu', '.org', 'corp.com', 'company.com', 'enterprise', 'corporate',
+                'government', 'federal', 'state', 'county', 'city', 'municipal', 'agency', 'department',
+                'pentagon', 'whitehouse', 'congress', 'senate', 'house', 'court', 'justice', 'treasury',
+                'defense', 'homeland', 'state.gov', 'fbi.gov', 'cia.gov', 'nsa.gov', 'dhs.gov'
+            ];
+            if (businessDomains.some(d => domain && domain.includes(d))) {
+                score += 0.3;
+                reasons.push('Sending to business/government domain');
+            }
+        }
+
+        // Urgency keywords - Expanded time-sensitive indicators
+        const urgencyKeywords = [
+            'urgent', 'asap', 'immediate', 'emergency', 'deadline', 'time-sensitive', 'rush', 'priority',
+            'critical', 'breaking', 'alert', 'warning', 'notice', 'announcement', 'bulletin', 'flash',
+            'expires', 'expiring', 'due date', 'overdue', 'final notice', 'last chance', 'limited time',
+            'act now', 'respond immediately', 'time limit', 'countdown', 'hurry', 'fast track', 'expedite'
+        ];
+        if (urgencyKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.2;
+            reasons.push('Time-sensitive content detected');
+        }
+
+        // Technology/IT Security keywords - Additional category for tech-related sensitive content
+        const techKeywords = [
+            'server', 'database', 'backup', 'restore', 'admin', 'administrator', 'root', 'sudo', 'ssh', 'ftp',
+            'api key', 'access token', 'oauth', 'jwt', 'certificate', 'ssl', 'tls', 'vpn', 'firewall',
+            'vulnerability', 'patch', 'update', 'security hole', 'exploit', 'zero-day', 'malware', 'ransomware',
+            'phishing', 'ddos', 'botnet', 'trojan', 'keylogger', 'spyware', 'adware', 'rootkit', 'backdoor',
+            'source code', 'repository', 'git', 'github', 'gitlab', 'bitbucket', 'deployment', 'production',
+            'staging', 'development', 'test environment', 'configuration', 'environment variable', 'secret key'
+        ];
+        if (techKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.6;
+            reasons.push('Contains technical/IT security information');
+            if (recommendedLevel === 'aes256') recommendedLevel = 'kyber';
+        }
+
+        // Research/Academic sensitive keywords
+        const researchKeywords = [
+            'research', 'study', 'experiment', 'clinical trial', 'data', 'dataset', 'analysis', 'results',
+            'findings', 'publication', 'manuscript', 'peer review', 'grant', 'funding', 'proposal',
+            'intellectual property', 'invention', 'discovery', 'breakthrough', 'innovation', 'prototype',
+            'formula', 'algorithm', 'methodology', 'procedure', 'protocol', 'specimen', 'sample'
+        ];
+        if (researchKeywords.some(keyword => content.includes(keyword))) {
+            score += 0.4;
+            reasons.push('Contains research/academic content');
+        }
+
+        return {
+            score: Math.min(score, 1.0),
+            confidence: Math.min(score, 1.0),
+            recommendedLevel,
+            reasons,
+            riskLevel: score > 0.8 ? 'high' : score > 0.5 ? 'medium' : 'low'
+        };
+    }
+
+    showEncryptionSuggestion(analysis) {
+        console.log('[Suggestions] showEncryptionSuggestion called');
+        const suggestionsDiv = document.getElementById('encryption-suggestions');
+        const contentDiv = document.getElementById('suggestion-content');
+        
+        if (!suggestionsDiv) {
+            console.error('[Suggestions] Could not find encryption-suggestions element');
+            return;
+        }
+        
+        if (!contentDiv) {
+            console.error('[Suggestions] Could not find suggestion-content element');
+            return;
+        }
+        
+        console.log('[Suggestions] Found suggestion elements, proceeding...');
+        
+        const levelNames = {
+            'plain': 'Plain Text',
+            'aes256': 'AES-256 Standard',
+            'kyber': 'Kyber Post-Quantum',
+            'otp': 'One-Time Pad Maximum'
+        };
+
+        const riskColors = {
+            'low': '🟡',
+            'medium': '🟠', 
+            'high': '🔴'
+        };
+
+        contentDiv.innerHTML = `
+            <div>
+                <strong>${riskColors[analysis.riskLevel]} Recommended: ${levelNames[analysis.recommendedLevel]} Security</strong>
+            </div>
+            <div style="margin-top: 0.5rem;">
+                Based on your email content, we recommend upgrading to <strong>${levelNames[analysis.recommendedLevel]}</strong> encryption.
+            </div>
+            <div class="suggestion-reason">
+                Reasons: ${analysis.reasons.join(', ')}
+            </div>
+        `;
+
+        this.currentSuggestion = analysis.recommendedLevel;
+        suggestionsDiv.style.display = 'block';
+    }
+
+    hideSuggestion() {
+        const suggestionsDiv = document.getElementById('encryption-suggestions');
+        suggestionsDiv.style.display = 'none';
+        this.currentSuggestion = null;
+    }
+
+    applySuggestion() {
+        if (this.currentSuggestion) {
+            document.getElementById('encryption-level').value = this.currentSuggestion;
+            this.updateSecurityIndicator(this.currentSuggestion);
+            this.hideSuggestion();
+            this.showToast('✅ Encryption level updated based on content analysis', 'success');
+        }
+    }
+
+    dismissSuggestion() {
+        this.hideSuggestion();
+        this.showToast('💡 Suggestion dismissed', 'info');
     }
 }
 
